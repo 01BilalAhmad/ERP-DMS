@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
-import { useShops, useCompanies, useCreateShop, useUpdateShop } from '@/lib/api-hooks'
+import { useShops, useCompanies, useCreateShop, useUpdateShop, useSession } from '@/lib/api-hooks'
 import { useToast } from '@/hooks/use-toast'
 import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/erp/ui-helpers'
 import { QuickRecovery } from '@/components/erp/quick-recovery'
@@ -107,6 +107,8 @@ export function ShopsModule() {
   const { toast } = useToast()
   const createMut = useCreateShop()
   const updateMut = useUpdateShop()
+  const { data: session } = useSession()
+  const isBooker = session?.role === 'ORDER_BOOKER'
 
   const shops: Shop[] = (data as Shop[]) || []
   const companies = (companiesData as any[]) || []
@@ -222,13 +224,15 @@ export function ShopsModule() {
     <div>
       <PageHeader
         title="Shops"
-        subtitle={`${stats.total} retailers · Outstanding ${formatCurrency(stats.totalOutstanding)}`}
+        subtitle={`${stats.total} ${isBooker ? 'shops on your route' : 'retailers'} · Outstanding ${formatCurrency(stats.totalOutstanding)}`}
         actions={
           <div className="flex items-center gap-2">
             <QuickRecovery />
-            <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              <Plus className="w-4 h-4" /> Add Shop
-            </Button>
+            {!isBooker && (
+              <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Plus className="w-4 h-4" /> Add Shop
+              </Button>
+            )}
           </div>
         }
       />
@@ -254,20 +258,22 @@ export function ShopsModule() {
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <SelectValue placeholder="All Companies" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Companies</SelectItem>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.code} · {c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!isBooker && (
+                <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <SelectValue placeholder="All Companies" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Companies</SelectItem>
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.code} · {c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Select value={classFilter} onValueChange={setClassFilter}>
                 <SelectTrigger className="w-[110px] h-9">
                   <SelectValue placeholder="All Classes" />

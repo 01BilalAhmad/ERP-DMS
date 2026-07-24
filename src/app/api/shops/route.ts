@@ -32,6 +32,11 @@ export async function GET(req: Request) {
     where.assignments = { some: { bookerId } }
   }
 
+  // SECURITY: Order Bookers can ONLY see shops assigned to them (auto-filter, regardless of query params)
+  if (user.role === 'ORDER_BOOKER' && user.booker) {
+    where.assignments = { some: { bookerId: user.booker.id } }
+  }
+
   const shops = await db.shop.findMany({
     where,
     include: {

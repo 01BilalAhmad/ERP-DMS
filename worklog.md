@@ -535,3 +535,79 @@ Unresolved / Next Steps:
 - Could add "Recovery Report by Booker" in Reports module
 - Could show booker's today's total collected on their dashboard
 - Mobile optimization for bookers in the field
+
+---
+Task ID: CRON-REVIEW-20260725
+Agent: main (cron-triggered review)
+Task: QA assessment + bug fixes + new recovery analytics features
+
+## Current Project Status Assessment
+Project is mature and stable. All 12 modules load without runtime errors (verified via agent-browser sequential testing). All 3 print pages (/print/invoice, /print/supplier-summary, /print/invoices) render correctly. Lint clean. No build errors. The Quick Recovery batch flow, Batches processing with consolidated pick list + manifest, and Previous Balance on bills are all working.
+
+## Bugs Found & Fixed
+1. **StatCard truncation bug** (VLM-detected): Large currency values like "Rs 10,535.63" were being cut off as "Rs 10,53..." due to `truncate` class on value text.
+   - Fix: Removed `truncate`, switched to responsive `text-lg md:text-xl lg:text-2xl` with `break-words` and `tabular-nums` for better number alignment. Added `group-hover:scale-110` on icon for subtle interactivity.
+   - File: src/components/erp/ui-helpers.tsx
+
+## New Features Added
+
+### 1. Today's Recovery KPI (Dashboard)
+- Updated /api/dashboard to include `todayRecoveryCount` and `recoveryByMode` (cash/cheque/transfer breakdown) in KPIs
+- Dashboard "Today's Recovery" StatCard now shows collection count + cash amount in hint
+- Previously showed only "Cash + Cheque + Transfer" generic hint
+
+### 2. Top Recovering Bookers Widget (Dashboard)
+- New dashboard widget ranking bookers by today's total collected amount
+- Each booker shows: rank badge (gold/silver/bronze), name, employee code, collection count, total amount, progress bar (relative to top booker)
+- Data sourced from payments where bookerId is set (recorded via Quick Recovery batch flow)
+- API: GET /api/dashboard now returns `topRecoveringBookers` array (max 5)
+
+### 3. Recent Recoveries Widget (Dashboard)
+- Live feed of today's 6 most recent payment collections
+- Each entry shows: payment mode icon (cash=emerald, cheque=sky, transfer=violet), shop name, booker name, time, amount
+- API: GET /api/dashboard now returns `recentRecoveries` array (max 6)
+
+### 4. Recovery by Mode Widget (Dashboard)
+- Visual breakdown of today's recovery by payment mode (Cash / Cheque / Transfer-Online)
+- Each mode shows amount + percentage with progress bar
+- Total summary at bottom
+
+### 5. Recovery by Booker Report (Reports module)
+- New report type `recoveryByBooker` added to /api/reports
+- Aggregates all payments (with bookerId set) grouped by booker
+- Per booker shows: total collected, recovery count, shops covered, cash/cheque/transfer/online breakdown, avg per recovery, daily time series
+- New "Recovery by Booker" tab in Reports module with:
+  - 5 summary StatCards (Total Recovered, Total Collections, Cash, Cheque, Transfer/Online)
+  - Full ranking table with 11 columns: Rank, Booker, Companies, Collections, Shops, Cash, Cheque, Transfer, Avg/Recovery, Total Collected, Performance bar
+  - Footer totals row
+- Sorted by total collected (highest first)
+
+## Verification Results
+1. **Lint**: Clean (no errors)
+2. **All 12 modules**: Load without runtime/build errors (agent-browser verified)
+3. **All 3 print pages**: Render correctly
+4. **Dashboard API**: Returns recovery data correctly:
+   - recoveryByMode: {cash: 1695.37, cheque: 0, transfer: 0}
+   - topRecoveringBookers: 1 booker (Jam Shahid)
+   - recentRecoveries: 6 items
+5. **Reports API** (recoveryByBooker): Returns Jam Shahid with total 568.06, 2 collections, all cash, 2 shops covered
+6. **VLM screenshot review**:
+   - Dashboard KPI values: NOT truncated (Rs 10,535.63 fully visible) ✓
+   - Recovery widgets: All 3 (Top Recovering Bookers, Recent Recoveries, Recovery by Mode) visible and well-styled ✓
+   - Recovery by Booker report: Table with all columns visible, clean styling, Jam Shahid row correct ✓
+
+## Files Modified
+- src/components/erp/ui-helpers.tsx — StatCard truncation fix + hover effect
+- src/app/api/dashboard/route.ts — Added recovery KPIs, topRecoveringBookers, recentRecoveries, recoveryByMode
+- src/components/erp/modules/dashboard.tsx — New "Today's Recovery" KPI hint + 3 new recovery widgets at bottom
+- src/app/api/reports/route.ts — Added recoveryByBooker report type
+- src/components/erp/modules/reports.tsx — Added "Recovery by Booker" tab + RecoveryByBookerReport component
+
+## Unresolved Issues / Next Steps
+- Booker productivity report (existing) could be enhanced to also show recovery stats side-by-side with sales stats (now that bookerId is tracked on payments)
+- Dashboard "Top Recovering Bookers" could link to a booker detail page
+- Recovery by Booker report could support date range filter UI (API already supports from/to)
+- Could add "Recovery vs Sales" comparison chart per booker (collection ratio = recovery / sales)
+- Mobile optimization: dashboard widgets stack on mobile but could be more compact
+- Could add CSV/Excel export for all reports
+- Consider adding booker login flow test (login as ahmed@erp.local / booker123 to verify booker sees only their data)

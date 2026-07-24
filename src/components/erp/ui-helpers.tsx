@@ -34,18 +34,18 @@ export function StatCard({
     violet: 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
   }
   return (
-    <Card className="overflow-hidden border-zinc-200 dark:border-zinc-800 hover:shadow-md transition-shadow">
+    <Card className="overflow-hidden border-zinc-200 dark:border-zinc-800 hover:shadow-md transition-shadow group">
       <CardContent className="p-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{title}</p>
           {loading ? (
             <div className="h-7 w-24 bg-muted rounded animate-pulse mt-1" />
           ) : (
-            <p className="text-xl md:text-2xl font-bold mt-1 truncate">{value}</p>
+            <p className="font-bold mt-1 tabular-nums leading-tight text-lg md:text-xl lg:text-2xl break-words">{value}</p>
           )}
-          {hint && <p className="text-[11px] text-muted-foreground mt-1">{hint}</p>}
+          {hint && <p className="text-[11px] text-muted-foreground mt-1 truncate">{hint}</p>}
         </div>
-        <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', tones[tone])}>
+        <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform', tones[tone])}>
           <Icon className="w-5 h-5" />
         </div>
       </CardContent>

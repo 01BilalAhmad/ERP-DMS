@@ -44,12 +44,38 @@ export async function GET(req: Request) {
           lte: new Date(new Date().setHours(23, 59, 59, 999)),
         },
       },
+      include: { booker: { select: { id: true, name: true, employeeCode: true } }, shop: { select: { name: true } } },
     }),
   ])
 
   const todaySales = todayOrders.reduce((s, o) => s + o.grandTotal, 0)
   const todayOrderCount = todayOrders.length
   const todayPaymentReceived = payments.reduce((s, p) => s + p.amount, 0)
+
+  // Top recovering bookers today
+  const bookerRecoveryMap: Record<string, { booker: any; total: number; count: number; cash: number; cheque: number; transfer: number }> = {}
+  for (const p of payments) {
+    if (!p.booker) continue
+    const bid = p.booker.id
+    if (!bookerRecoveryMap[bid]) {
+      bookerRecoveryMap[bid] = { booker: p.booker, total: 0, count: 0, cash: 0, cheque: 0, transfer: 0 }
+    }
+    bookerRecoveryMap[bid].total += p.amount
+    bookerRecoveryMap[bid].count += 1
+    if (p.paymentMode === 'CASH') bookerRecoveryMap[bid].cash += p.amount
+    else if (p.paymentMode === 'CHEQUE') bookerRecoveryMap[bid].cheque += p.amount
+    else bookerRecoveryMap[bid].transfer += p.amount
+  }
+  const topRecoveringBookers = Object.values(bookerRecoveryMap)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+
+  // Today's recovery mode breakdown
+  const recoveryByMode = {
+    cash: payments.filter((p) => p.paymentMode === 'CASH').reduce((s, p) => s + p.amount, 0),
+    cheque: payments.filter((p) => p.paymentMode === 'CHEQUE').reduce((s, p) => s + p.amount, 0),
+    transfer: payments.filter((p) => p.paymentMode === 'TRANSFER' || p.paymentMode === 'ONLINE').reduce((s, p) => s + p.amount, 0),
+  }
 
   // Outstanding across all (or selected company)
   const outstanding = await db.shopCompanyLink.aggregate({
@@ -95,6 +121,8 @@ export async function GET(req: Request) {
       todaySales,
       todayOrderCount,
       todayPaymentReceived,
+      todayRecoveryCount: payments.length,
+      recoveryByMode,
       outstanding: outstanding._sum.outstandingBalance || 0,
       lowStock,
       totalOrders: orderCount,
@@ -104,6 +132,7 @@ export async function GET(req: Request) {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, value]) => ({ date, value })),
     statusBreakdown,
+    topRecoveringBookers,
     recentOrders: todayOrders.slice(0, 8).map((o) => ({
       id: o.id,
       orderNo: o.orderNo,
@@ -114,6 +143,15 @@ export async function GET(req: Request) {
       status: o.status,
       currency: o.currency,
       orderDate: o.orderDate,
+    })),
+    recentRecoveries: payments.slice(0, 6).map((p) => ({
+      id: p.id,
+      paymentNo: (p as any).paymentNo,
+      amount: p.amount,
+      paymentMode: p.paymentMode,
+      booker: p.booker,
+      shop: p.shop,
+      paymentDate: p.paymentDate,
     })),
   })
 }

@@ -107,6 +107,73 @@ export async function GET(req: Request) {
     return ok(aging)
   }
 
+  if (type === 'recoveryByBooker') {
+    const payments = await db.payment.findMany({
+      where: {
+        ...companyFilter,
+        ...(Object.keys(dateFilter).length ? { paymentDate: dateFilter } : {}),
+        bookerId: { not: null },
+      },
+      include: {
+        booker: { include: { companyMaps: { include: { company: true } } } },
+        shop: { select: { name: true, code: true } },
+        company: { select: { code: true, name: true } },
+      },
+    })
+    const bookerMap: Record<string, {
+      booker: any
+      totalCollected: number
+      recoveryCount: number
+      shopsCovered: Set<string>
+      cash: number
+      cheque: number
+      transfer: number
+      online: number
+      byDate: Record<string, number>
+    }> = {}
+    for (const p of payments) {
+      if (!p.booker) continue
+      const bid = p.booker.id
+      if (!bookerMap[bid]) {
+        bookerMap[bid] = {
+          booker: p.booker,
+          totalCollected: 0,
+          recoveryCount: 0,
+          shopsCovered: new Set(),
+          cash: 0, cheque: 0, transfer: 0, online: 0,
+          byDate: {},
+        }
+      }
+      bookerMap[bid].totalCollected += p.amount
+      bookerMap[bid].recoveryCount += 1
+      bookerMap[bid].shopsCovered.add(p.shopId)
+      if (p.paymentMode === 'CASH') bookerMap[bid].cash += p.amount
+      else if (p.paymentMode === 'CHEQUE') bookerMap[bid].cheque += p.amount
+      else if (p.paymentMode === 'TRANSFER') bookerMap[bid].transfer += p.amount
+      else if (p.paymentMode === 'ONLINE') bookerMap[bid].online += p.amount
+      const day = p.paymentDate.toISOString().slice(0, 10)
+      bookerMap[bid].byDate[day] = (bookerMap[bid].byDate[day] || 0) + p.amount
+    }
+    const result = Object.values(bookerMap)
+      .map((b) => ({
+        booker: b.booker,
+        companies: b.booker.companyMaps?.map((m: any) => m.company?.code).filter(Boolean) || [],
+        totalCollected: b.totalCollected,
+        recoveryCount: b.recoveryCount,
+        shopsCovered: b.shopsCovered.size,
+        cash: b.cash,
+        cheque: b.cheque,
+        transfer: b.transfer,
+        online: b.online,
+        avgPerRecovery: b.recoveryCount > 0 ? b.totalCollected / b.recoveryCount : 0,
+        byDate: Object.entries(b.byDate)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([date, amount]) => ({ date, amount })),
+      }))
+      .sort((a, b) => b.totalCollected - a.totalCollected)
+    return ok(result)
+  }
+
   if (type === 'topShops') {
     const orders = await db.order.findMany({
       where: { ...companyFilter, status: { notIn: ['CANCELLED', 'DRAFT'] }, ...(Object.keys(dateFilter).length ? { orderDate: dateFilter } : {}) },

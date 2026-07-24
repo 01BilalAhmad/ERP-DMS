@@ -6,6 +6,8 @@ import { useAppStore } from '@/lib/store'
 import { PageHeader, StatCard, EmptyState } from '@/components/erp/ui-helpers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -20,28 +22,59 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import {
-  BarChart3, Users, Store, AlertTriangle, TrendingUp, Award, Trophy,
+  BarChart3, Users, Store, AlertTriangle, TrendingUp, Award, Trophy, Wallet, Zap, Download,
 } from 'lucide-react'
 
-type ReportType = 'salesSummary' | 'bookerProductivity' | 'shopCoverage' | 'aging' | 'topShops'
+type ReportType = 'salesSummary' | 'bookerProductivity' | 'shopCoverage' | 'aging' | 'topShops' | 'recoveryByBooker'
 
 export function ReportsModule() {
   const { activeCompanyId } = useAppStore()
   const [type, setType] = useState<ReportType>('salesSummary')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const companyId = activeCompanyId === 'ALL' ? undefined : activeCompanyId
-  const { data, isLoading } = useReport(type, { companyId })
+  const { data, isLoading } = useReport(type, { companyId, from: fromDate || undefined, to: toDate || undefined })
+
+  function handleExport() {
+    const params = new URLSearchParams({ type })
+    if (companyId) params.set('companyId', companyId)
+    if (fromDate) params.set('from', fromDate)
+    if (toDate) params.set('to', toDate)
+    window.open(`/api/export?${params.toString()}`, '_blank')
+  }
+
+  // Map report type → export type (only some reports have CSV exports)
+  const canExport = ['recoveryByBooker'].includes(type)
 
   const tabs: { key: ReportType; label: string; icon: any }[] = [
     { key: 'salesSummary', label: 'Sales Summary', icon: TrendingUp },
     { key: 'bookerProductivity', label: 'Booker Productivity', icon: Users },
     { key: 'shopCoverage', label: 'Shop Coverage', icon: Store },
     { key: 'topShops', label: 'Top Shops', icon: Trophy },
+    { key: 'recoveryByBooker', label: 'Recovery by Booker', icon: Zap },
     { key: 'aging', label: 'Outstanding Aging', icon: AlertTriangle },
   ]
 
   return (
     <div>
-      <PageHeader title="Reports & Analytics" subtitle="Performance insights across companies, bookers, and shops" />
+      <PageHeader
+        title="Reports & Analytics"
+        subtitle="Performance insights across companies, bookers, and shops"
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[140px] h-9 text-xs" />
+              <span className="text-muted-foreground text-xs">→</span>
+              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[140px] h-9 text-xs" />
+            </div>
+            {canExport && (
+              <Button variant="outline" size="sm" onClick={handleExport} className="h-9">
+                <Download className="w-4 h-4 mr-1" /> Export CSV
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {/* Tab selector */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -73,6 +106,7 @@ export function ReportsModule() {
           {type === 'bookerProductivity' && <BookerProductivity data={data} />}
           {type === 'shopCoverage' && <ShopCoverage data={data} />}
           {type === 'topShops' && <TopShops data={data} />}
+          {type === 'recoveryByBooker' && <RecoveryByBookerReport data={data} />}
           {type === 'aging' && <AgingReport data={data} />}
         </>
       )}
@@ -279,6 +313,96 @@ function AgingReport({ data }: { data: any }) {
           </ScrollArea>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function RecoveryByBookerReport({ data }: { data: any }) {
+  if (!data?.length) return <EmptyState icon={Zap} title="No recovery data" hint="Recoveries recorded via Quick Recovery will appear here, grouped by order booker." />
+  const sorted = [...data]
+  const totalCollected = sorted.reduce((s, b) => s + b.totalCollected, 0)
+  const totalRecoveries = sorted.reduce((s, b) => s + b.recoveryCount, 0)
+  const totalCash = sorted.reduce((s, b) => s + b.cash, 0)
+  const totalCheque = sorted.reduce((s, b) => s + b.cheque, 0)
+  const totalTransfer = sorted.reduce((s, b) => s + b.transfer + b.online, 0)
+  const max = sorted[0]?.totalCollected || 1
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+        <StatCard title="Total Recovered" value={formatCurrency(totalCollected)} icon={Wallet} tone="emerald" />
+        <StatCard title="Total Collections" value={totalRecoveries} icon={Zap} tone="sky" />
+        <StatCard title="Cash" value={formatCurrency(totalCash)} icon={Wallet} tone="emerald" />
+        <StatCard title="Cheque" value={formatCurrency(totalCheque)} icon={Wallet} tone="violet" />
+        <StatCard title="Transfer/Online" value={formatCurrency(totalTransfer)} icon={Wallet} tone="amber" />
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Recovery Ranking by Booker</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="max-h-[70vh]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Rank</TableHead>
+                  <TableHead>Booker</TableHead>
+                  <TableHead>Companies</TableHead>
+                  <TableHead className="text-right">Collections</TableHead>
+                  <TableHead className="text-right">Shops</TableHead>
+                  <TableHead className="text-right">Cash</TableHead>
+                  <TableHead className="text-right">Cheque</TableHead>
+                  <TableHead className="text-right">Transfer</TableHead>
+                  <TableHead className="text-right">Avg/Recovery</TableHead>
+                  <TableHead className="text-right">Total Collected</TableHead>
+                  <TableHead>Performance</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((b, i) => (
+                  <TableRow key={b.booker.id}>
+                    <TableCell>
+                      <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-bold ${i < 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400'}`}>{i + 1}</span>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm font-medium">{b.booker.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{b.booker.employeeCode}</p>
+                    </TableCell>
+                    <TableCell><div className="flex flex-wrap gap-1">{b.companies.map((c: string, i: number) => <Badge key={i} variant="outline" className="text-[9px]">{c}</Badge>)}</div></TableCell>
+                    <TableCell className="text-right text-sm font-semibold">{b.recoveryCount}</TableCell>
+                    <TableCell className="text-right text-xs">{b.shopsCovered}</TableCell>
+                    <TableCell className="text-right text-xs text-emerald-600">{b.cash > 0 ? formatCurrency(b.cash) : '—'}</TableCell>
+                    <TableCell className="text-right text-xs text-sky-600">{b.cheque > 0 ? formatCurrency(b.cheque) : '—'}</TableCell>
+                    <TableCell className="text-right text-xs text-violet-600">{(b.transfer + b.online) > 0 ? formatCurrency(b.transfer + b.online) : '—'}</TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">{formatCurrency(b.avgPerRecovery)}</TableCell>
+                    <TableCell className="text-right text-sm font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(b.totalCollected)}</TableCell>
+                    <TableCell>
+                      <div className="w-28">
+                        <Progress value={(b.totalCollected / max) * 100} className="h-2" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+              <tfoot>
+                <TableRow className="bg-zinc-50 dark:bg-zinc-900/50 font-bold">
+                  <TableCell colSpan={3}>TOTAL ({sorted.length} bookers)</TableCell>
+                  <TableCell className="text-right text-sm">{totalRecoveries}</TableCell>
+                  <TableCell className="text-right text-xs">—</TableCell>
+                  <TableCell className="text-right text-xs text-emerald-600">{formatCurrency(totalCash)}</TableCell>
+                  <TableCell className="text-right text-xs text-sky-600">{formatCurrency(totalCheque)}</TableCell>
+                  <TableCell className="text-right text-xs text-violet-600">{formatCurrency(totalTransfer)}</TableCell>
+                  <TableCell className="text-right text-xs">—</TableCell>
+                  <TableCell className="text-right text-sm text-emerald-700 dark:text-emerald-400">{formatCurrency(totalCollected)}</TableCell>
+                  <TableCell>—</TableCell>
+                </TableRow>
+              </tfoot>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+      <p className="text-[11px] text-muted-foreground text-center mt-2">
+        💡 Recovery = cash/cheque/transfer collected from shops by order bookers. Ranked by total collected (highest first).
+      </p>
     </div>
   )
 }
