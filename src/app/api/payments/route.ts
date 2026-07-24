@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   if (['ORDER_BOOKER', 'WAREHOUSE', 'VIEWER'].includes(user.role)) return bad('Forbidden', 403)
 
   const body = await req.json()
-  const { companyId, shopId, amount, paymentMode, currency, currencyRate, referenceNo, bankName, paymentDate, notes } = body
+  const { companyId, shopId, amount, paymentMode, currency, currencyRate, referenceNo, bankName, paymentDate, notes, bookerId } = body
   if (!companyId || !shopId || !amount) return bad('companyId, shopId, amount required')
 
   const count = await db.payment.count()
@@ -50,6 +50,7 @@ export async function POST(req: Request) {
       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
       status: 'RECEIVED',
       receivedById: user.id,
+      bookerId: bookerId || null,
       notes,
     },
   })

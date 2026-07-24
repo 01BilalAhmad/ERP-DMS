@@ -23,12 +23,13 @@ export function useCurrencies() {
   return useQuery({ queryKey: ['currencies'], queryFn: () => fetchJson('/api/currencies') })
 }
 
-export function useShops(params: { q?: string; companyId?: string; status?: string; class?: string } = {}) {
+export function useShops(params: { q?: string; companyId?: string; status?: string; class?: string; bookerId?: string } = {}) {
   const u = new URLSearchParams()
   if (params.q) u.set('q', params.q)
   if (params.companyId) u.set('companyId', params.companyId)
   if (params.status) u.set('status', params.status)
   if (params.class) u.set('class', params.class)
+  if (params.bookerId) u.set('bookerId', params.bookerId)
   return useQuery({ queryKey: ['shops', params], queryFn: () => fetchJson(`/api/shops?${u}`) })
 }
 

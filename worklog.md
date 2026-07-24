@@ -460,3 +460,78 @@ Unresolved / Next Steps:
 - Show previous balance on dashboard KPIs (total previous balances across all shops)
 - Could add "Settle Previous Balance" option that creates a payment earmarked for previous balance only
 - Booker mobile view optimization (Quick Recovery should be thumb-reachable)
+
+---
+Task ID: QUICK-RECOVERY-BATCH
+Agent: main
+Task: Rewrite Quick Recovery as batch entry with booker selection + queue + OK to submit all
+
+Work Log:
+- Added bookerId field to Payment model (tracks which order booker collected each recovery)
+- Added PaymentBooker relation on OrderBooker model
+- Pushed schema, regenerated Prisma client (had to restart dev server to pick up new client)
+
+Backend:
+- Updated shops API GET to support bookerId filter: when bookerId passed, returns ONLY shops assigned to that booker via BookerShopAssignment (where.assignments = { some: { bookerId } })
+- Updated payments POST API to accept + store bookerId on payment record
+- Updated useShops hook to pass bookerId param
+
+Frontend - Quick Recovery (complete rewrite as batch entry):
+- src/components/erp/quick-recovery.tsx now implements a 3-step batch flow:
+  * STEP 1: Select Order Booker (dropdown of all active bookers, shows company count)
+    - Shows "Companies: COMP-A, COMP-B" for transparency
+  * STEP 2: Select Shop — dropdown shows ONLY shops assigned to selected booker
+    - Each shop shows current outstanding inline (e.g., "New Mart Gulshan (Out: Rs 345.51)" or "(Clear)" if 0)
+    - If booker has no shop assignments, shows warning "No shops assigned to this booker yet"
+    - Company is auto-derived from shop's companyLink intersected with booker's assigned companies
+    - Shows outstanding amount with "Fill full" auto-fill button
+  * STEP 3: Enter Amount + Mode (default Cash) → "Add to Queue" button
+    - Prevents duplicate shop entry (warns if shop already in queue)
+  
+- QUEUE LIST (shows at top of dialog):
+  * Header: "Queued Recoveries (N)" with green total badge
+  * Each queued item shows: #, shop name + code, company + mode, amount, "was: X" (outstanding before)
+  * Remove (trash) button per item
+  * Footer: "N recoveries queued · Total: Rs X"
+  
+- "OK — Submit All (N)" button:
+  * Disabled when queue empty
+  * On click: loops through queue, calls createPayment mutation for each with bookerId
+  * Shows spinner during submission
+  * Success: toast "✓ N recoveries recorded / balances updated", clears queue, closes dialog
+  * Partial failure: reports how many succeeded vs failed
+  * After success: invalidates shops/ledger queries → balances refresh automatically
+
+Verification (agent-browser):
+1. Seeded booker "Jam Shahid" (OB-001) with COMP-A assignment + 3 shops (SHOP-0001, 0002, 0003) assigned via BookerShopAssignment
+2. Opened Quick Recovery from Shops module header
+3. Selected booker "OB-001 · Jam Shahid (1 companies)" → "Companies: COMP-A" shown ✓
+4. Shop dropdown showed ONLY 3 assigned shops (NOT all 5):
+   - SHOP-0001 · Test Shop 1 (Clear)
+   - SHOP-0002 · New Mart Gulshan (Out: Rs 345.51)
+   - SHOP-0003 · City Store Tariq Road (Out: Rs 222.55)
+   ✓ (SHOP-0004 and SHOP-0005 NOT shown — correctly filtered)
+5. Selected New Mart Gulshan → outstanding Rs 345.51 shown → clicked "Fill full" → amount auto-filled
+6. Clicked "Add to Queue" → queue shows: "1. New Mart Gulshan (SHOP-0002) · AL-FALAH TRADERS · CASH · Rs 345.51 · was: Rs 345.51"
+7. Selected City Store Tariq Road → outstanding Rs 222.55 → Fill full → Add to Queue
+8. Queue now shows 2 items, total badge "Rs 568.06", footer "2 recoveries queued · Total: Rs 568.06"
+9. Clicked "OK — Submit All (2)" → POST /api/payments 201 (x2) ✓
+10. Dialog closed, balances updated:
+    - New Mart Gulshan: 345.51 → 0 ✓
+    - City Store Tariq Road: 222.55 → 0 ✓
+11. DB verification: payments saved with bookerId = Jam Shahid ✓
+
+Stage Summary:
+- Quick Recovery now properly matches user's exact workflow requirement:
+  "pehle orderbooker select karein → usi booker ki shops show hon → jo jo recovery add karein upar column banta jaye → end mein OK karein to shops k balances update hon"
+- Booker accountability: each payment now records which booker collected it (bookerId)
+- Shop filtering: only shops assigned to selected booker via BookerShopAssignment appear
+- Queue-then-commit: recoveries queue up first, balances update ONLY when OK is clicked
+- Real-time outstanding shown per shop in dropdown (helps booker know which shops have dues)
+- Auto-fill full outstanding button (one click fills exact outstanding amount)
+
+Unresolved / Next Steps:
+- Booker productivity report should show total recoveries collected per booker (now that bookerId is tracked)
+- Could add "Recovery Report by Booker" in Reports module
+- Could show booker's today's total collected on their dashboard
+- Mobile optimization for bookers in the field

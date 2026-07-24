@@ -11,6 +11,7 @@ export async function GET(req: Request) {
   const companyLink = searchParams.get('companyId')
   const status = searchParams.get('status') || undefined
   const shopClass = searchParams.get('class') || undefined
+  const bookerId = searchParams.get('bookerId') || undefined
 
   const where: Prisma.ShopWhereInput = {}
   if (search) {
@@ -25,6 +26,10 @@ export async function GET(req: Request) {
   if (shopClass) where.shopClass = shopClass
   if (companyLink) {
     where.companyLinks = { some: { companyId: companyLink } }
+  }
+  // Filter by booker assignment: only shops assigned to this booker (via BookerShopAssignment)
+  if (bookerId) {
+    where.assignments = { some: { bookerId } }
   }
 
   const shops = await db.shop.findMany({

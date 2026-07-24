@@ -165,6 +165,7 @@ model OrderBooker {
   shopAssign   BookerShopAssignment[]
   orders       Order[]  @relation("OrderBooker")
   batches      OrderBatch[] @relation("BatchBooker")
+  payments     Payment[] @relation("PaymentBooker")
 }
 
 model BookerCompanyMapping {
@@ -462,11 +463,13 @@ model Payment {
   paymentDate   DateTime @default(now())
   status        String   @default("RECEIVED") // RECEIVED | CLEARED | BOUNCED
   receivedById  String
+  bookerId      String?  // which order booker collected this recovery (null = direct/cashier)
   notes         String?
   createdAt     DateTime @default(now())
 
   company    Company @relation(fields: [companyId], references: [id])
   shop       Shop    @relation(fields: [shopId], references: [id])
   receivedBy User    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+  booker     OrderBooker? @relation("PaymentBooker", fields: [bookerId], references: [id], onDelete: SetNull)
   ledger     Ledger?
 }
