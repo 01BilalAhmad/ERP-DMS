@@ -366,3 +366,97 @@ Unresolved / Next Steps:
 - PDF metadata (title/author) not set since using print-to-PDF (browser handles it)
 - Could add QR code/barcode on invoices for scanning
 - Could add company logo upload + display on invoice header
+
+---
+Task ID: RECOVERY-1
+Agent: main
+Task: Add Quick Recovery (fast payment collection) + Previous Balance on bills
+
+Work Log:
+- Added previousBalance + totalPayable fields to Order schema (snapshot of shop's outstanding at order creation)
+- Added previousBalance + totalPayable fields to Invoice schema (carried from order)
+- Pushed schema, regenerated Prisma client
+
+Backend:
+- Updated orders POST API to capture outstandingBalance from shop's companyLink → stored as previousBalance, totalPayable = grandTotal + previousBalance
+- Updated batches/[id] PATCH (delivery) to set invoice.previousBalance, invoice.totalPayable, invoice.balance = totalPayable
+- Updated orders/[id] PATCH (single delivery) to set same invoice fields
+
+Frontend - Quick Recovery:
+- Created src/components/erp/quick-recovery.tsx — minimal payment modal:
+  * Company + Shop dropdowns (shop filtered by selected company)
+  * Shows current outstanding of selected shop with "Click to fill full outstanding amount" auto-fill button
+  * Amount + payment mode (default Cash) + optional reference
+  * One-click "Record Recovery" — uses useCreatePayment mutation
+  * Accessible from Order Entry (top action button) and Shops module header
+  * Preset companyId/shopId can be passed (order-entry pre-fills with current selection)
+
+Frontend - Previous Balance on Bill:
+- Order Entry cart summary: after Grand Total, if shop has outstanding:
+  * Shows "Previous Balance (outstanding)" in amber
+  * Shows "TOTAL PAYABLE" in amber box = grandTotal + previousBalance
+  * Note: "Current bill + previous balance"
+- Orders detail sheet: GRAND TOTAL row + Previous Balance + TOTAL PAYABLE (amber highlighted)
+- Invoice print page (/print/invoice/[invoiceId]):
+  * NET INVOICE (current bill total)
+  * Previous Balance (dashed separator, amber color)
+  * TOTAL PAYABLE (bold, larger font, black separator)
+  * Balance Due = totalPayable
+- Bulk invoices print (/print/invoices/[batchId]): same previous balance + total payable display
+- All print pages keep tax breakdown intact (sales tax, further tax, withholding tax calculated on current bill only — previous balance is NOT re-taxed)
+
+Verification (agent-browser):
+1. Quick Recovery test:
+   - Opened Quick Recovery dialog from Order Entry
+   - Selected company COMP-A + shop SHOP-0001 (Test Shop 1, outstanding Rs 327.31)
+   - Dialog showed "Current Outstanding: Rs 327.31" with auto-fill button
+   - Clicked "fill full outstanding amount" → amount auto-filled (327.31)
+   - Clicked "Record Recovery" → POST /api/payments 201 ✓
+   - Outstanding of Test Shop 1 reduced to 0 ✓
+
+2. Previous Balance on bill test:
+   - Created order ORD-000007 for New Mart Gulshan (outstanding Rs 236.41)
+   - Added 1 Chocolate Biscuit @ Rs 92
+   - Cart summary showed:
+     * Grand Total: Rs 109.10
+     * Previous Balance: Rs 236.41 ✓
+     * TOTAL PAYABLE: Rs 345.51 ✓ (109.10 + 236.41)
+   - Submitted order → POST /api/orders 201 ✓
+   - DB verification: previousBalance=236.41, totalPayable=345.51 ✓
+
+3. Order detail sheet:
+   - GRAND TOTAL: 109.10
+   - Previous Balance: 236.41 ✓
+   - TOTAL PAYABLE: 345.51 ✓ (amber highlighted)
+
+4. Invoice generation:
+   - Approved → Picked → Dispatched → Delivered
+   - Invoice INV-000006 auto-generated with:
+     * grandTotal: 109.10
+     * previousBalance: 236.41 ✓
+     * totalPayable: 345.51 ✓
+     * balance: 345.51 (total payable = balance due) ✓
+
+5. Invoice print page:
+   - NET INVOICE: 109.10
+   - Previous Balance: 236.41 ✓ (amber, dashed separator)
+   - TOTAL PAYABLE: 345.51 ✓ (bold, black separator)
+   - Balance Due: 345.51 ✓
+   - Tax breakdown intact (Sales Tax 16.56, Withholding Tax 0.54)
+   - 4 signature lines intact
+
+Stage Summary:
+- Both features FULLY WORKING and verified end-to-end:
+  1. Quick Recovery: booker can record cash/cheque collection in seconds (3 clicks: open dialog → fill amount → submit)
+  2. Previous Balance on bill: when booking order for shop with outstanding, bill shows:
+     - Current bill total (with full tax breakdown)
+     - Previous Balance (outstanding carried over)
+     - TOTAL PAYABLE = current + previous
+- This matches user's exact requirement: "agar kisi shop ka bakaya amount aa raha ho aur orderbooker us ka bill banain to us bill pe previous balance bhi lazmi aana chahiye or end me total bill or previous balance ka sum aana chahiye"
+- Tax compliance maintained: previous balance is NOT re-taxed (only current bill goes through sales tax / further tax / withholding tax calculation)
+
+Unresolved / Next Steps:
+- Show "Quick Recovery" button on shops list per-row (quick action per shop)
+- Show previous balance on dashboard KPIs (total previous balances across all shops)
+- Could add "Settle Previous Balance" option that creates a payment earmarked for previous balance only
+- Booker mobile view optimization (Quick Recovery should be thumb-reachable)

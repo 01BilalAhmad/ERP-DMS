@@ -238,6 +238,16 @@ function OrderDetailSheet({ orderId, onClose, notes, setNotes, onToast }: {
               <div className="border-t pt-1 mt-1">
                 <Row label="GRAND TOTAL" value={order.grandTotal} bold large />
               </div>
+              {order.previousBalance > 0 && (
+                <>
+                  <div className="border-t pt-1 mt-1" style={{ color: '#b45309' }}>
+                    <Row label="Previous Balance" value={order.previousBalance} bold />
+                  </div>
+                  <div className="rounded bg-amber-500 text-white px-2 py-1 mt-1">
+                    <Row label="TOTAL PAYABLE" value={order.totalPayable} bold large />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Notes */}

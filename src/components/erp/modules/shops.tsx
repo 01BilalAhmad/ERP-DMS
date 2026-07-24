@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from 'react'
 import { useShops, useCompanies, useCreateShop, useUpdateShop } from '@/lib/api-hooks'
 import { useToast } from '@/hooks/use-toast'
 import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/erp/ui-helpers'
+import { QuickRecovery } from '@/components/erp/quick-recovery'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -223,9 +224,12 @@ export function ShopsModule() {
         title="Shops"
         subtitle={`${stats.total} retailers · Outstanding ${formatCurrency(stats.totalOutstanding)}`}
         actions={
-          <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            <Plus className="w-4 h-4" /> Add Shop
-          </Button>
+          <div className="flex items-center gap-2">
+            <QuickRecovery />
+            <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Plus className="w-4 h-4" /> Add Shop
+            </Button>
+          </div>
         }
       />
 

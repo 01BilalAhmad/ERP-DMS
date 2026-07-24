@@ -147,6 +147,8 @@ export async function POST(req: Request) {
         furtherTax: totals.furtherTax,
         withholdingTax: totals.withholdingTax,
         grandTotal: totals.grandTotal,
+        previousBalance: outstandingBalance,
+        totalPayable: totals.grandTotal + outstandingBalance,
         creditLimitExceeded: totals.creditLimitExceeded,
         stockShortage: totals.stockShortage,
         warnings: totals.warnings.length ? JSON.stringify(totals.warnings) : null,

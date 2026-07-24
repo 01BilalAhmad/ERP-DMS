@@ -348,6 +348,8 @@ model Order {
   furtherTax      Float    @default(0) // for non-filer shops
   withholdingTax  Float    @default(0) // filer/non-filer withholding
   grandTotal      Float    @default(0)
+  previousBalance Float    @default(0) // shop's outstanding captured at order creation (snapshot)
+  totalPayable    Float    @default(0) // grandTotal + previousBalance
 
   // Warnings (NOT blocking)
   creditLimitExceeded Boolean @default(false)
@@ -409,6 +411,8 @@ model Invoice {
   furtherTax   Float   @default(0)
   withholdingTax Float @default(0)
   grandTotal   Float   @default(0)
+  previousBalance Float @default(0) // carried from order snapshot
+  totalPayable Float @default(0) // grandTotal + previousBalance
   paidAmount   Float   @default(0)
   balance      Float   @default(0)
   status       String  @default("UNPAID") // UNPAID | PARTIAL | PAID | OVERDUE

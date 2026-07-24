@@ -109,7 +109,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             furtherTax: order.furtherTax,
             withholdingTax: order.withholdingTax,
             grandTotal: order.grandTotal,
-            balance: order.grandTotal,
+            previousBalance: order.previousBalance,
+            totalPayable: order.totalPayable,
+            balance: order.totalPayable,
             status: 'UNPAID',
           },
         })

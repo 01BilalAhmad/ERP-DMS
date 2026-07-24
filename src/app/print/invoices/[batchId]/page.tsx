@@ -166,6 +166,16 @@ export default async function BulkInvoicesPage({ params }: { params: Promise<{ b
                 <div className="row"><span>Advance Tax:</span><strong>{invoice.withholdingTax.toFixed(2)}</strong></div>
                 <div className="row"><span>Total Discount:</span><strong>{invoice.totalDiscount.toFixed(2)}</strong></div>
                 <div className="row grand"><span>NET INVOICE:</span><strong>{invoice.grandTotal.toFixed(2)}</strong></div>
+                {invoice.previousBalance > 0 && (
+                  <div className="row" style={{ marginTop: 4, paddingTop: 4, borderTop: '1px dashed #999', color: '#b45309' }}>
+                    <span>Previous Balance:</span><strong>{invoice.previousBalance.toFixed(2)}</strong>
+                  </div>
+                )}
+                {invoice.totalPayable > invoice.grandTotal && (
+                  <div className="row" style={{ marginTop: 4, paddingTop: 4, borderTop: '2px solid #000', fontSize: '11px' }}>
+                    <span>TOTAL PAYABLE:</span><strong>{invoice.totalPayable.toFixed(2)}</strong>
+                  </div>
+                )}
                 <div className="row" style={{ fontSize: '8px', marginTop: 4, color: '#666' }}><span>Paid:</span><span>{invoice.paidAmount.toFixed(2)}</span></div>
                 <div className="row" style={{ fontSize: '8px', color: invoice.balance > 0 ? '#c00' : '#070' }}><span>Balance:</span><strong>{invoice.balance.toFixed(2)}</strong></div>
               </div>

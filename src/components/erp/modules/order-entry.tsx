@@ -17,6 +17,7 @@ import {
   type TaxType,
 } from '@/lib/erp-types'
 import { PageHeader, EmptyState } from '@/components/erp/ui-helpers'
+import { QuickRecovery } from '@/components/erp/quick-recovery'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -280,6 +281,7 @@ export function OrderEntryModule() {
         subtitle="Book a new sales order with full tax computation & warnings"
         actions={
           <div className="flex items-center gap-2">
+            <QuickRecovery presetCompanyId={companyId} presetShopId={shopId} />
             {cartCount > 0 && (
               <Button
                 variant="outline"
@@ -612,6 +614,7 @@ export function OrderEntryModule() {
               submitting={submitting}
               currency={currency}
               company={company}
+              previousBalance={companyLink?.outstandingBalance || 0}
             />
           </div>
         </div>
@@ -657,6 +660,7 @@ export function OrderEntryModule() {
                     submitting={submitting}
                     currency={currency}
                     company={company}
+                    previousBalance={companyLink?.outstandingBalance || 0}
                     compact
                   />
                 </div>
@@ -768,6 +772,7 @@ function CartPanel({
   submitting,
   currency,
   company,
+  previousBalance = 0,
   compact = false,
 }: {
   shop?: Shop
@@ -786,6 +791,7 @@ function CartPanel({
   submitting: boolean
   currency?: Currency
   company?: Company
+  previousBalance?: number
   compact?: boolean
 }) {
   if (!shop) {
@@ -992,6 +998,31 @@ function CartPanel({
                     </span>
                   </div>
                 </div>
+
+                {/* Previous Balance + Total Payable */}
+                {previousBalance > 0 && (
+                  <>
+                    <div className="border-t border-amber-300/50 dark:border-amber-800/50 pt-1.5 mt-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                          Previous Balance (outstanding)
+                        </span>
+                        <span className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                          {formatCurrency(previousBalance, currencyCode, currency?.rate || 1)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-amber-500 text-white p-2 mt-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold uppercase tracking-wide">Total Payable</span>
+                        <span className="text-lg font-extrabold">
+                          {formatCurrency(totals.grandTotal + previousBalance, currencyCode, currency?.rate || 1)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-amber-50 mt-0.5">Current bill + previous balance</p>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
