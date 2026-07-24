@@ -385,9 +385,18 @@ function PickListTab({ batchId }: { batchId: string }) {
           <CardTitle className="text-base flex items-center gap-2">
             <Boxes className="w-4 h-4 text-emerald-600" /> Consolidated Pick List
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="w-3.5 h-3.5 mr-1" /> Print
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`/print/supplier-summary/${batchId}`, '_blank')}
+            >
+              <FileText className="w-3.5 h-3.5 mr-1" /> Print Supplier Summary
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="w-3.5 h-3.5 mr-1" /> Print Pick List
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="max-h-[45vh]">
@@ -455,9 +464,18 @@ function ManifestTab({ batchId }: { batchId: string }) {
           <CardTitle className="text-base flex items-center gap-2">
             <Truck className="w-4 h-4 text-emerald-600" /> Dispatch Manifest
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="w-3.5 h-3.5 mr-1" /> Print Manifest
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`/print/invoices/${batchId}`, '_blank')}
+            >
+              <FileText className="w-3.5 h-3.5 mr-1" /> Print All Invoices
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="w-3.5 h-3.5 mr-1" /> Print Manifest
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="max-h-[45vh]">

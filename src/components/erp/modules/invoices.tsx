@@ -170,9 +170,17 @@ function InvoiceDetailSheet({ invoice, onClose }: { invoice: any; onClose: () =>
             <div className="flex justify-between text-rose-600 font-semibold"><span>Balance Due</span><span>{invoice.balance.toFixed(2)}</span></div>
           </div>
 
-          <Button variant="outline" className="w-full" onClick={() => window.print()}>
-            <Printer className="w-4 h-4 mr-2" /> Print Invoice
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => window.open(`/print/invoice/${invoice.id}`, '_blank')}
+            >
+              <Printer className="w-4 h-4 mr-2" /> Print Invoice
+            </Button>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" /> Print Sheet
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

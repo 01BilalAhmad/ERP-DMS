@@ -313,3 +313,56 @@ Unresolved / Next Steps:
 - Print-optimized CSS for pick list + manifest (currently uses window.print)
 - Booker dashboard: show their batches + today's route
 - Batch-level payment tracking (collect payment against whole batch)
+
+---
+Task ID: PDF-1
+Agent: main
+Task: Build Supplier Summary (Load Form) + Shopkeeper Invoice (Cash Memo) print pages matching reference PDFs
+
+Work Log:
+- Read both reference PDFs (bills.pdf = shopkeeper invoice format, cbl (1).pdf = supplier load form)
+- bills.pdf format: Company header (NTN/STRN/SalesTax#), Invoice metadata, Shop details (M/S code, NTN, route), items table (code, product, CTN/Box/Units, unit price excl, value excl, GST%, GST amt, gross, discount, net), promotions list (scheme-wise breakdown), summary box (Gross excl GST, GST, With GST, Advance Tax, Total Discount, Net Invoice), Load Form ref, 4 signature lines (Checked By/Order Booker/Delivered By/Shop Keeper)
+- cbl (1).pdf format: Load Form header (Deliveryman, PJP/Route, Order Booker, dates), Section 1 (SKU-wise issued: code, name, mfg code, issued units, box, cartons, returned, free, sale units), Section 2 (Store-wise: S.No, invoice no, store/owner, booker, status, issued units, total issued, sales amount), 2 signature lines (Deliveryman/Stock Keeper)
+
+Files Created:
+- src/app/print/layout.tsx - minimal print layout (no sidebar/topbar)
+- src/app/print/print.css - print-optimized CSS (@page A4, doc styling, tables, signatures, @media print)
+- src/components/erp/print-button.tsx - client component with window.print() + window.close()
+- src/app/print/supplier-summary/[batchId]/page.tsx - Supplier Summary (Load Form) - Server Component fetching batch with consolidated SKU table + store-wise summary
+- src/app/print/invoice/[invoiceId]/page.tsx - Single Shopkeeper Invoice - Server Component with full tax breakdown + promotions + 4 signatures
+- src/app/print/invoices/[batchId]/page.tsx - Bulk Invoices - renders all invoices in batch, page-break-after each
+
+Key Technical Decisions:
+- Used print-optimized HTML pages with window.print() instead of server-side PDF libraries (simpler, no deps, user gets native print dialog → can save as PDF)
+- Server Components for data fetching (direct Prisma queries), Client component (PrintButton) for print trigger
+- @page CSS rule for A4 size with 12mm margins
+- page-break-after: always for bulk invoices
+- Matched reference PDF column structures exactly
+
+Integration:
+- Batches module (Pick List tab): "Print Supplier Summary" button → /print/supplier-summary/[batchId]
+- Batches module (Manifest tab): "Print All Invoices" button → /print/invoices/[batchId]
+- Invoices module (detail sheet): "Print Invoice" button → /print/invoice/[invoiceId]
+
+Verification (agent-browser):
+- Invoice print page (/print/invoice/INV-000005): renders Alpha Distributors header, CASH MEMO/INVOICE title, shop details, items table with GST breakdown, promotions list, summary box with Net Invoice, 4 signature lines ✓
+- Supplier summary (/print/supplier-summary/BAT-000001): renders LOAD FORM header, Section 1 (SKU consolidated: 1 product, 9 units), Section 2 (3 stores with INV-000003/4/5, 9 total units, sales amounts), signature lines ✓
+- Bulk invoices (/print/invoices/BAT-000001): renders all 3 invoices, each with page break ✓
+- Print buttons in Batches module + Invoices module working (open in new tab) ✓
+- Lint clean, no runtime errors
+
+Stage Summary:
+- Both PDF formats (supplier summary + shopkeeper invoice) fully implemented and verified
+- User can now print/download:
+  1. Supplier Summary (Load Form) - for warehouse to pick stock + for stock keeper
+  2. Shopkeeper Invoice (Cash Memo) - tax-compliant bill given to each shop
+  3. Bulk Invoices - all invoices in a batch printed at once (one per page)
+- Tax breakdown on invoice matches reference: Gross Excl GST, GST (sales tax), Further Tax (non-filer), With GST, Advance Tax (withholding), Total Discount, Net Invoice
+- Promotions/schemes listed line-by-line as in reference
+- Signature lines match reference (Checked By, Order Booker, Delivered By, Shop Keeper)
+
+Unresolved / Next Steps:
+- Booker name shows "—" on print pages when order has no booker (admin-created orders). Need to assign booker during order entry for production use.
+- PDF metadata (title/author) not set since using print-to-PDF (browser handles it)
+- Could add QR code/barcode on invoices for scanning
+- Could add company logo upload + display on invoice header
