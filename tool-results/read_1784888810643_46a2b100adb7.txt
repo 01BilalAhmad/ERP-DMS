@@ -1,0 +1,1110 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo, useEffect, useCallback } from 'react'
+     4→import {
+     5→  useCompanies,
+     6→  useShops,
+     7→  useProducts,
+     8→  useCurrencies,
+     9→  useCreateOrder,
+    10→  useSession,
+    11→} from '@/lib/api-hooks'
+    12→import { useToast } from '@/hooks/use-toast'
+    13→import {
+    14→  calculateOrderTotals,
+    15→  formatCurrency,
+    16→  type CartItem,
+    17→  type TaxType,
+    18→} from '@/lib/erp-types'
+    19→import { PageHeader, EmptyState } from '@/components/erp/ui-helpers'
+    20→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    21→import { Button } from '@/components/ui/button'
+    22→import { Input } from '@/components/ui/input'
+    23→import { Label } from '@/components/ui/label'
+    24→import { Textarea } from '@/components/ui/textarea'
+    25→import { Skeleton } from '@/components/ui/skeleton'
+    26→import { Badge } from '@/components/ui/badge'
+    27→import {
+    28→  Select,
+    29→  SelectTrigger,
+    30→  SelectValue,
+    31→  SelectContent,
+    32→  SelectItem,
+    33→} from '@/components/ui/select'
+    34→import {
+    35→  Sheet,
+    36→  SheetContent,
+    37→  SheetHeader,
+    38→  SheetTitle,
+    39→  SheetTrigger,
+    40→} from '@/components/ui/sheet'
+    41→import { ScrollArea } from '@/components/ui/scroll-area'
+    42→import { cn } from '@/lib/utils'
+    43→import {
+    44→  Search,
+    45→  ShoppingCart,
+    46→  Trash2,
+    47→  Plus,
+    48→  Building2,
+    49→  Store,
+    50→  Package,
+    51→  AlertTriangle,
+    52→  CheckCircle2,
+    53→  Loader2,
+    54→  ChevronRight,
+    55→  RotateCcw,
+    56→  Wallet,
+    57→  ShieldAlert,
+    58→  Tag,
+    59→  StickyNote,
+    60→  FileCheck2,
+    61→} from 'lucide-react'
+    62→
+    63→// ---------- local types ----------
+    64→interface Company {
+    65→  id: string
+    66→  code: string
+    67→  name: string
+    68→  salesTaxRate: number
+    69→  filerTaxRate: number
+    70→  nonFilerTaxRate: number
+    71→  furtherTaxRate: number
+    72→  defaultCurrency: string
+    73→}
+    74→interface ShopLink {
+    75→  id: string
+    76→  companyId: string
+    77→  creditLimit: number
+    78→  outstandingBalance: number
+    79→}
+    80→interface Shop {
+    81→  id: string
+    82→  code: string
+    83→  name: string
+    84→  ownerName?: string
+    85→  phone?: string
+    86→  shopClass: string
+    87→  taxType: string
+    88→  companyLinks: ShopLink[]
+    89→}
+    90→interface Product {
+    91→  id: string
+    92→  code: string
+    93→  name: string
+    94→  unit: string
+    95→  tradePrice: number
+    96→  retailerPrice?: number | null
+    97→  taxRate: number
+    98→  packSize?: string | null
+    99→  availableStock: number
+   100→  schemes?: any[]
+   101→}
+   102→interface Currency {
+   103→  id: string
+   104→  code: string
+   105→  name: string
+   106→  symbol: string
+   107→  rate: number
+   108→  isDefault: boolean
+   109→}
+   110→
+   111→// ---------- main component ----------
+   112→export function OrderEntryModule() {
+   113→  const { toast } = useToast()
+   114→  const session = useSession()
+   115→  const role = session.data?.role as string | undefined
+   116→
+   117→  const companiesQ = useCompanies()
+   118→  const currenciesQ = useCurrencies()
+   119→  const createOrderMut = useCreateOrder()
+   120→
+   121→  const [companyId, setCompanyId] = useState<string>('')
+   122→  const [shopId, setShopId] = useState<string>('')
+   123→  const [productSearch, setProductSearch] = useState<string>('')
+   124→  const [cart, setCart] = useState<CartItem[]>([])
+   125→  const [manualDiscount, setManualDiscount] = useState<number>(0)
+   126→  const [currencyCode, setCurrencyCode] = useState<string>('PKR')
+   127→  const [notes, setNotes] = useState<string>('')
+   128→  const [mobileCartOpen, setMobileCartOpen] = useState(false)
+   129→  const [submittedOrder, setSubmittedOrder] = useState<any | null>(null)
+   130→
+   131→  const shopsQ = useShops({ companyId })
+   132→  const productsQ = useProducts({ companyId, q: productSearch })
+   133→
+   134→  // Reset dependent state when company changes
+   135→  useEffect(() => {
+   136→    setShopId('')
+   137→    setCart([])
+   138→    setManualDiscount(0)
+   139→    setProductSearch('')
+   140→    setSubmittedOrder(null)
+   141→  }, [companyId])
+   142→
+   143→  // Reset cart state when shop changes
+   144→  useEffect(() => {
+   145→    setCart([])
+   146→    setManualDiscount(0)
+   147→    setSubmittedOrder(null)
+   148→  }, [shopId])
+   149→
+   150→  // Auto-select first company if user only has one
+   151→  useEffect(() => {
+   152→    if (!companyId && companiesQ.data?.length === 1) {
+   153→      setCompanyId(companiesQ.data[0].id)
+   154→    }
+   155→  }, [companiesQ.data, companyId])
+   156→
+   157→  const companies = (companiesQ.data || []) as Company[]
+   158→  const currencies = (currenciesQ.data || []) as Currency[]
+   159→  const company = companies.find((c) => c.id === companyId)
+   160→  const shop = ((shopsQ.data || []) as Shop[]).find((s) => s.id === shopId)
+   161→  const companyLink = shop?.companyLinks?.find((l) => l.companyId === companyId)
+   162→  const currency = currencies.find((c) => c.code === currencyCode)
+   163→
+   164→  // Compute totals using shared helper (no recompute)
+   165→  const totals = useMemo(() => {
+   166→    if (!company || !shop || cart.length === 0) return null
+   167→    return calculateOrderTotals(cart, {
+   168→      manualDiscount: Number(manualDiscount) || 0,
+   169→      salesTaxRate: company.salesTaxRate,
+   170→      filerTaxRate: company.filerTaxRate,
+   171→      nonFilerTaxRate: company.nonFilerTaxRate,
+   172→      furtherTaxRate: company.furtherTaxRate,
+   173→      shopTaxType: shop.taxType as TaxType,
+   174→      creditLimit: companyLink?.creditLimit || 0,
+   175→      outstandingBalance: companyLink?.outstandingBalance || 0,
+   176→      currencyRate: currency?.rate || 1,
+   177→    })
+   178→  }, [cart, manualDiscount, company, shop, companyLink, currency])
+   179→
+   180→  // ---------- cart operations ----------
+   181→  const addToCart = useCallback((product: Product) => {
+   182→    setCart((prev) => {
+   183→      const ex = prev.find((i) => i.productId === product.id)
+   184→      if (ex) {
+   185→        return prev.map((i) =>
+   186→          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
+   187→        )
+   188→      }
+   189→      return [
+   190→        ...prev,
+   191→        {
+   192→          productId: product.id,
+   193→          code: product.code,
+   194→          name: product.name,
+   195→          unit: product.unit,
+   196→          quantity: 1,
+   197→          unitPrice: product.tradePrice,
+   198→          discountPct: 0,
+   199→          taxRate: product.taxRate,
+   200→        },
+   201→      ]
+   202→    })
+   203→    setSubmittedOrder(null)
+   204→  }, [])
+   205→
+   206→  const updateItem = useCallback(
+   207→    (productId: string, patch: Partial<CartItem>) => {
+   208→      setCart((prev) =>
+   209→        prev.map((i) => (i.productId === productId ? { ...i, ...patch } : i))
+   210→      )
+   211→    },
+   212→    []
+   213→  )
+   214→
+   215→  const removeItem = useCallback((productId: string) => {
+   216→    setCart((prev) => prev.filter((i) => i.productId !== productId))
+   217→  }, [])
+   218→
+   219→  const resetAll = useCallback(() => {
+   220→    setCart([])
+   221→    setManualDiscount(0)
+   222→    setNotes('')
+   223→    setSubmittedOrder(null)
+   224→  }, [])
+   225→
+   226→  // ---------- submit ----------
+   227→  const handleSubmit = async () => {
+   228→    if (!company || !shop || cart.length === 0) {
+   229→      toast({
+   230→        title: 'Cannot submit',
+   231→        description: 'Select company, shop and add at least one item.',
+   232→        variant: 'destructive',
+   233→      })
+   234→      return
+   235→    }
+   236→    try {
+   237→      const result: any = await createOrderMut.mutateAsync({
+   238→        companyId,
+   239→        shopId,
+   240→        items: cart,
+   241→        manualDiscount: Number(manualDiscount) || 0,
+   242→        currency: currencyCode,
+   243→        currencyRate: currency?.rate || 1,
+   244→        notes: notes.trim() || undefined,
+   245→        bookerId: session.data?.booker?.id,
+   246→      })
+   247→      setSubmittedOrder(result.order)
+   248→      const warnings: string[] = result.warnings || []
+   249→      toast({
+   250→        title: `Order ${result.order.orderNo} created`,
+   251→        description: warnings.length
+   252→          ? `Grand total ${formatCurrency(result.order.grandTotal, result.order.currency, result.order.currencyRate)}. ${warnings.length} warning(s) flagged.`
+   253→          : `Grand total ${formatCurrency(result.order.grandTotal, result.order.currency, result.order.currencyRate)}. Order is now pending approval.`,
+   254→      })
+   255→      setCart([])
+   256→      setManualDiscount(0)
+   257→      setNotes('')
+   258→      setMobileCartOpen(false)
+   259→    } catch (e: any) {
+   260→      toast({
+   261→        title: 'Failed to create order',
+   262→        description: e.message || 'Unexpected error',
+   263→        variant: 'destructive',
+   264→      })
+   265→    }
+   266→  }
+   267→
+   268→  const cartCount = cart.length
+   269→  const submitting = createOrderMut.isPending
+   270→
+   271→  // ---------- derived UI bits ----------
+   272→  const filteredProducts = (productsQ.data || []) as Product[]
+   273→
+   274→  return (
+   275→    <div className="space-y-5">
+   276→      <PageHeader
+   277→        title="Order Entry"
+   278→        subtitle="Book a new sales order with full tax computation & warnings"
+   279→        actions={
+   280→          <div className="flex items-center gap-2">
+   281→            {cartCount > 0 && (
+   282→              <Button
+   283→                variant="outline"
+   284→                size="sm"
+   285→                onClick={resetAll}
+   286→                className="border-zinc-300 dark:border-zinc-700"
+   287→              >
+   288→                <RotateCcw className="w-4 h-4 mr-1" /> Reset
+   289→              </Button>
+   290→            )}
+   291→            {role && !['ORDER_BOOKER', 'VIEWER'].includes(role) && (
+   292→              <Badge
+   293→                variant="outline"
+   294→                className="hidden sm:inline-flex bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+   295→              >
+   296→                Role: {role.replace('_', ' ')}
+   297→              </Badge>
+   298→            )}
+   299→          </div>
+   300→        }
+   301→      />
+   302→
+   303→      {/* Stepper */}
+   304→      <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto pb-1">
+   305→        <StepChip
+   306→          num={1}
+   307→          label="Company"
+   308→          active={!companyId}
+   309→          done={!!companyId}
+   310→          value={company ? company.code : undefined}
+   311→        />
+   312→        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+   313→        <StepChip
+   314→          num={2}
+   315→          label="Shop"
+   316→          active={!!companyId && !shopId}
+   317→          done={!!shopId}
+   318→          value={shop ? shop.code : undefined}
+   319→        />
+   320→        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+   321→        <StepChip
+   322→          num={3}
+   323→          label="Products"
+   324→          active={!!shopId && cartCount === 0}
+   325→          done={cartCount > 0}
+   326→          value={cartCount > 0 ? `${cartCount} items` : undefined}
+   327→        />
+   328→        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+   329→        <StepChip num={4} label="Submit" active={cartCount > 0} done={false} />
+   330→      </div>
+   331→
+   332→      {/* Success banner */}
+   333→      {submittedOrder && (
+   334→        <Card className="border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
+   335→          <CardContent className="p-4 flex items-start gap-3">
+   336→            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+   337→            <div className="flex-1 min-w-0">
+   338→              <p className="font-semibold text-emerald-800 dark:text-emerald-200">
+   339→                Order {submittedOrder.orderNo} created successfully
+   340→              </p>
+   341→              <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-0.5">
+   342→                Shop: {submittedOrder.shop?.name} · Grand total{' '}
+   343→                {formatCurrency(
+   344→                  submittedOrder.grandTotal,
+   345→                  submittedOrder.currency,
+   346→                  submittedOrder.currencyRate
+   347→                )}{' '}
+   348→                · Status: <span className="font-semibold">{submittedOrder.status}</span>
+   349→              </p>
+   350→              {submittedOrder.creditLimitExceeded || submittedOrder.stockShortage ? (
+   351→                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1">
+   352→                  <AlertTriangle className="w-3 h-3" /> Order was flagged with warnings (credit / stock). Still saved successfully.
+   353→                </p>
+   354→              ) : null}
+   355→            </div>
+   356→            <Button
+   357→              variant="ghost"
+   358→              size="sm"
+   359→              className="text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+   360→              onClick={() => setSubmittedOrder(null)}
+   361→            >
+   362→              Dismiss
+   363→            </Button>
+   364→          </CardContent>
+   365→        </Card>
+   366→      )}
+   367→
+   368→      {/* Main grid: left = selection + products, right = cart */}
+   369→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   370→        <div className="lg:col-span-2 space-y-4">
+   371→          {/* Step 1: Company */}
+   372→          <Card className="border-zinc-200 dark:border-zinc-800">
+   373→            <CardHeader className="pb-3">
+   374→              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+   375→                <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+   376→                1. Select Company
+   377→              </CardTitle>
+   378→            </CardHeader>
+   379→            <CardContent>
+   380→              {companiesQ.isLoading ? (
+   381→                <Skeleton className="h-10 w-full" />
+   382→              ) : companies.length === 0 ? (
+   383→                <p className="text-sm text-muted-foreground">
+   384→                  No companies assigned to you. Contact admin.
+   385→                </p>
+   386→              ) : (
+   387→                <Select value={companyId} onValueChange={setCompanyId}>
+   388→                  <SelectTrigger className="w-full">
+   389→                    <SelectValue placeholder="Choose company…" />
+   390→                  </SelectTrigger>
+   391→                  <SelectContent>
+   392→                    {companies.map((c) => (
+   393→                      <SelectItem key={c.id} value={c.id}>
+   394→                        <span className="font-mono text-xs mr-2">{c.code}</span>
+   395→                        {c.name}
+   396→                      </SelectItem>
+   397→                    ))}
+   398→                  </SelectContent>
+   399→                </Select>
+   400→              )}
+   401→              {company && (
+   402→                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+   403→                  <TaxInfo label="Sales Tax" value={`${company.salesTaxRate}%`} />
+   404→                  <TaxInfo label="Filer WHT" value={`${company.filerTaxRate}%`} />
+   405→                  <TaxInfo label="Non-Filer WHT" value={`${company.nonFilerTaxRate}%`} />
+   406→                  <TaxInfo label="Further Tax" value={`${company.furtherTaxRate}%`} />
+   407→                </div>
+   408→              )}
+   409→            </CardContent>
+   410→          </Card>
+   411→
+   412→          {/* Step 2: Shop */}
+   413→          <Card className="border-zinc-200 dark:border-zinc-800">
+   414→            <CardHeader className="pb-3">
+   415→              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+   416→                <Store className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+   417→                2. Select Shop
+   418→              </CardTitle>
+   419→            </CardHeader>
+   420→            <CardContent className="space-y-3">
+   421→              {!companyId ? (
+   422→                <p className="text-sm text-muted-foreground">
+   423→                  Select a company first.
+   424→                </p>
+   425→              ) : shopsQ.isLoading ? (
+   426→                <Skeleton className="h-10 w-full" />
+   427→              ) : ((shopsQ.data || []) as Shop[]).length === 0 ? (
+   428→                <p className="text-sm text-muted-foreground">
+   429→                  No shops linked to this company.
+   430→                </p>
+   431→              ) : (
+   432→                <>
+   433→                  <Select value={shopId} onValueChange={setShopId}>
+   434→                    <SelectTrigger className="w-full">
+   435→                      <SelectValue placeholder="Choose shop…" />
+   436→                    </SelectTrigger>
+   437→                    <SelectContent>
+   438→                      {((shopsQ.data || []) as Shop[]).map((s) => (
+   439→                        <SelectItem key={s.id} value={s.id}>
+   440→                          <span className="font-mono text-xs mr-2">{s.code}</span>
+   441→                          {s.name}
+   442→                          <span className="ml-2 text-[10px] text-muted-foreground">
+   443→                            ({s.taxType})
+   444→                          </span>
+   445→                        </SelectItem>
+   446→                      ))}
+   447→                    </SelectContent>
+   448→                  </Select>
+   449→
+   450→                  {shop && companyLink && (
+   451→                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
+   452→                      <ShopInfoMini
+   453→                        label="Tax Type"
+   454→                        value={shop.taxType}
+   455→                        tone={shop.taxType === 'FILER' ? 'emerald' : 'amber'}
+   456→                      />
+   457→                      <ShopInfoMini label="Class" value={shop.shopClass} />
+   458→                      <ShopInfoMini
+   459→                        label="Outstanding"
+   460→                        value={formatCurrency(companyLink.outstandingBalance)}
+   461→                      />
+   462→                      <ShopInfoMini
+   463→                        label="Credit Limit"
+   464→                        value={
+   465→                          companyLink.creditLimit > 0
+   466→                            ? formatCurrency(companyLink.creditLimit)
+   467→                            : 'Unlimited'
+   468→                        }
+   469→                      />
+   470→                    </div>
+   471→                  )}
+   472→                </>
+   473→              )}
+   474→            </CardContent>
+   475→          </Card>
+   476→
+   477→          {/* Step 3: Products */}
+   478→          <Card className="border-zinc-200 dark:border-zinc-800">
+   479→            <CardHeader className="pb-3">
+   480→              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+   481→                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+   482→                  <Package className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+   483→                  3. Add Products
+   484→                </CardTitle>
+   485→                <div className="relative w-full sm:w-72">
+   486→                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   487→                  <Input
+   488→                    placeholder="Search by name or code…"
+   489→                    value={productSearch}
+   490→                    onChange={(e) => setProductSearch(e.target.value)}
+   491→                    className="pl-8 h-9"
+   492→                    disabled={!shopId}
+   493→                  />
+   494→                </div>
+   495→              </div>
+   496→            </CardHeader>
+   497→            <CardContent>
+   498→              {!shopId ? (
+   499→                <p className="text-sm text-muted-foreground py-4 text-center">
+   500→                  Select a shop to start adding products.
+   501→                </p>
+   502→              ) : productsQ.isLoading ? (
+   503→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+   504→                  {Array.from({ length: 6 }).map((_, i) => (
+   505→                    <Skeleton key={i} className="h-20 w-full" />
+   506→                  ))}
+   507→                </div>
+   508→              ) : filteredProducts.length === 0 ? (
+   509→                <EmptyState
+   510→                  icon={Package}
+   511→                  title="No products found"
+   512→                  hint="Try a different search term, or add products for this company first."
+   513→                />
+   514→              ) : (
+   515→                <ScrollArea className="max-h-[420px]">
+   516→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-1">
+   517→                    {filteredProducts.slice(0, 60).map((p) => {
+   518→                      const inCart = cart.find((i) => i.productId === p.id)
+   519→                      const lowStock =
+   520→                        p.availableStock !== undefined && p.availableStock <= 5
+   521→                      return (
+   522→                        <div
+   523→                          key={p.id}
+   524→                          className={cn(
+   525→                            'group rounded-lg border p-3 transition-colors',
+   526→                            inCart
+   527→                              ? 'border-emerald-400 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/30'
+   528→                              : 'border-zinc-200 dark:border-zinc-800 hover:border-emerald-300 dark:hover:border-emerald-800'
+   529→                          )}
+   530→                        >
+   531→                          <div className="flex items-start justify-between gap-2">
+   532→                            <div className="min-w-0 flex-1">
+   533→                              <p className="text-sm font-medium truncate">
+   534→                                {p.name}
+   535→                              </p>
+   536→                              <p className="text-[11px] text-muted-foreground font-mono">
+   537→                                {p.code}
+   538→                                {p.packSize ? ` · ${p.packSize}` : ''}
+   539→                              </p>
+   540→                            </div>
+   541→                            {inCart ? (
+   542→                              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px]">
+   543→                                In cart: {inCart.quantity}
+   544→                              </Badge>
+   545→                            ) : null}
+   546→                          </div>
+   547→                          <div className="flex items-center justify-between mt-2">
+   548→                            <div className="text-xs space-y-0.5">
+   549→                              <p className="font-semibold">
+   550→                                {formatCurrency(p.tradePrice)}
+   551→                                <span className="text-muted-foreground font-normal">
+   552→                                  {' '}/ {p.unit}
+   553→                                </span>
+   554→                              </p>
+   555→                              <p
+   556→                                className={cn(
+   557→                                  'flex items-center gap-1',
+   558→                                  lowStock
+   559→                                    ? 'text-amber-600 dark:text-amber-400'
+   560→                                    : 'text-muted-foreground'
+   561→                                )}
+   562→                              >
+   563→                                Stock: {p.availableStock ?? 0} {p.unit}
+   564→                                {lowStock && (
+   565→                                  <AlertTriangle className="w-3 h-3" />
+   566→                                )}
+   567→                              </p>
+   568→                            </div>
+   569→                            <Button
+   570→                              size="sm"
+   571→                              onClick={() => addToCart(p)}
+   572→                              className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
+   573→                            >
+   574→                              <Plus className="w-3.5 h-3.5 mr-1" />
+   575→                              {inCart ? 'More' : 'Add'}
+   576→                            </Button>
+   577→                          </div>
+   578→                        </div>
+   579→                      )
+   580→                    })}
+   581→                  </div>
+   582→                  {filteredProducts.length > 60 && (
+   583→                    <p className="text-center text-xs text-muted-foreground mt-3">
+   584→                      Showing first 60 of {filteredProducts.length}. Refine search to narrow down.
+   585→                    </p>
+   586→                  )}
+   587→                </ScrollArea>
+   588→              )}
+   589→            </CardContent>
+   590→          </Card>
+   591→        </div>
+   592→
+   593→        {/* Cart panel - desktop sticky */}
+   594→        <div className="hidden lg:block">
+   595→          <div className="sticky top-4">
+   596→            <CartPanel
+   597→              shop={shop}
+   598→              cart={cart}
+   599→              totals={totals}
+   600→              manualDiscount={manualDiscount}
+   601→              setManualDiscount={setManualDiscount}
+   602→              currencyCode={currencyCode}
+   603→              setCurrencyCode={setCurrencyCode}
+   604→              currencies={currencies}
+   605→              notes={notes}
+   606→              setNotes={setNotes}
+   607→              updateItem={updateItem}
+   608→              removeItem={removeItem}
+   609→              onSubmit={handleSubmit}
+   610→              submitting={submitting}
+   611→              currency={currency}
+   612→              company={company}
+   613→            />
+   614→          </div>
+   615→        </div>
+   616→      </div>
+   617→
+   618→      {/* Mobile cart trigger */}
+   619→      {cartCount > 0 && (
+   620→        <div className="lg:hidden fixed bottom-4 right-4 z-30">
+   621→          <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
+   622→            <SheetTrigger asChild>
+   623→              <Button className="rounded-full h-14 w-14 p-0 shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white">
+   624→                <div className="relative">
+   625→                  <ShoppingCart className="w-5 h-5" />
+   626→                  <span className="absolute -top-2 -right-2 bg-amber-400 text-emerald-950 text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+   627→                    {cartCount}
+   628→                  </span>
+   629→                </div>
+   630→              </Button>
+   631→            </SheetTrigger>
+   632→            <SheetContent side="bottom" className="h-[90vh] p-0">
+   633→              <SheetHeader className="px-4 pt-4 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+   634→                <SheetTitle className="flex items-center gap-2 text-base">
+   635→                  <ShoppingCart className="w-4 h-4 text-emerald-600" />
+   636→                  Order Cart
+   637→                </SheetTitle>
+   638→              </SheetHeader>
+   639→              <ScrollArea className="h-[calc(90vh-60px)]">
+   640→                <div className="p-4">
+   641→                  <CartPanel
+   642→                    shop={shop}
+   643→                    cart={cart}
+   644→                    totals={totals}
+   645→                    manualDiscount={manualDiscount}
+   646→                    setManualDiscount={setManualDiscount}
+   647→                    currencyCode={currencyCode}
+   648→                    setCurrencyCode={setCurrencyCode}
+   649→                    currencies={currencies}
+   650→                    notes={notes}
+   651→                    setNotes={setNotes}
+   652→                    updateItem={updateItem}
+   653→                    removeItem={removeItem}
+   654→                    onSubmit={handleSubmit}
+   655→                    submitting={submitting}
+   656→                    currency={currency}
+   657→                    company={company}
+   658→                    compact
+   659→                  />
+   660→                </div>
+   661→              </ScrollArea>
+   662→            </SheetContent>
+   663→          </Sheet>
+   664→        </div>
+   665→      )}
+   666→    </div>
+   667→  )
+   668→}
+   669→
+   670→// ---------- Step chip ----------
+   671→function StepChip({
+   672→  num,
+   673→  label,
+   674→  active,
+   675→  done,
+   676→  value,
+   677→}: {
+   678→  num: number
+   679→  label: string
+   680→  active?: boolean
+   681→  done?: boolean
+   682→  value?: string
+   683→}) {
+   684→  return (
+   685→    <div
+   686→      className={cn(
+   687→        'flex items-center gap-2 px-3 py-1.5 rounded-full border shrink-0 transition-colors',
+   688→        done
+   689→          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
+   690→          : active
+   691→            ? 'border-emerald-500 bg-emerald-600 text-white'
+   692→            : 'border-zinc-200 bg-white text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900'
+   693→      )}
+   694→    >
+   695→      <span
+   696→        className={cn(
+   697→          'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold',
+   698→          done
+   699→            ? 'bg-emerald-600 text-white'
+   700→            : active
+   701→              ? 'bg-white text-emerald-700'
+   702→              : 'bg-zinc-100 text-muted-foreground dark:bg-zinc-800'
+   703→        )}
+   704→      >
+   705→        {done ? <CheckCircle2 className="w-3 h-3" /> : num}
+   706→      </span>
+   707→      <span className="font-medium">{label}</span>
+   708→      {value && <span className="text-[10px] opacity-80">· {value}</span>}
+   709→    </div>
+   710→  )
+   711→}
+   712→
+   713→// ---------- tax info mini ----------
+   714→function TaxInfo({ label, value }: { label: string; value: string }) {
+   715→  return (
+   716→    <div className="rounded-md bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 border border-zinc-100 dark:border-zinc-800">
+   717→      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+   718→      <p className="text-sm font-semibold">{value}</p>
+   719→    </div>
+   720→  )
+   721→}
+   722→
+   723→// ---------- shop info mini ----------
+   724→function ShopInfoMini({
+   725→  label,
+   726→  value,
+   727→  tone = 'default',
+   728→}: {
+   729→  label: string
+   730→  value: string
+   731→  tone?: 'default' | 'emerald' | 'amber'
+   732→}) {
+   733→  return (
+   734→    <div>
+   735→      <p className="text-[10px] uppercase tracking-wide text-emerald-700/80 dark:text-emerald-300/80">
+   736→        {label}
+   737→      </p>
+   738→      <p
+   739→        className={cn(
+   740→          'text-sm font-semibold',
+   741→          tone === 'emerald' && 'text-emerald-700 dark:text-emerald-300',
+   742→          tone === 'amber' && 'text-amber-700 dark:text-amber-300'
+   743→        )}
+   744→      >
+   745→        {value}
+   746→      </p>
+   747→    </div>
+   748→  )
+   749→}
+   750→
+   751→// ---------- Cart panel ----------
+   752→function CartPanel({
+   753→  shop,
+   754→  cart,
+   755→  totals,
+   756→  manualDiscount,
+   757→  setManualDiscount,
+   758→  currencyCode,
+   759→  setCurrencyCode,
+   760→  currencies,
+   761→  notes,
+   762→  setNotes,
+   763→  updateItem,
+   764→  removeItem,
+   765→  onSubmit,
+   766→  submitting,
+   767→  currency,
+   768→  company,
+   769→  compact = false,
+   770→}: {
+   771→  shop?: Shop
+   772→  cart: CartItem[]
+   773→  totals: ReturnType<typeof calculateOrderTotals> | null
+   774→  manualDiscount: number
+   775→  setManualDiscount: (v: number) => void
+   776→  currencyCode: string
+   777→  setCurrencyCode: (v: string) => void
+   778→  currencies: Currency[]
+   779→  notes: string
+   780→  setNotes: (v: string) => void
+   781→  updateItem: (id: string, patch: Partial<CartItem>) => void
+   782→  removeItem: (id: string) => void
+   783→  onSubmit: () => void
+   784→  submitting: boolean
+   785→  currency?: Currency
+   786→  company?: Company
+   787→  compact?: boolean
+   788→}) {
+   789→  if (!shop) {
+   790→    return (
+   791→      <Card className="border-zinc-200 dark:border-zinc-800 sticky top-4">
+   792→        <CardContent className="p-4">
+   793→          <EmptyState
+   794→            icon={ShoppingCart}
+   795→            title="Cart is empty"
+   796→            hint="Pick a shop first to start adding items."
+   797→          />
+   798→        </CardContent>
+   799→      </Card>
+   800→    )
+   801→  }
+   802→
+   803→  return (
+   804→    <Card className="border-emerald-200 dark:border-emerald-900">
+   805→      <CardHeader className="pb-3 border-b border-zinc-100 dark:border-zinc-800">
+   806→        <div className="flex items-center justify-between">
+   807→          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+   808→            <ShoppingCart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+   809→            Cart
+   810→            {cart.length > 0 && (
+   811→              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px]">
+   812→                {cart.length}
+   813→              </Badge>
+   814→            )}
+   815→          </CardTitle>
+   816→          <span className="text-xs text-muted-foreground">{shop.name}</span>
+   817→        </div>
+   818→      </CardHeader>
+   819→      <CardContent className="p-3 space-y-3">
+   820→        {cart.length === 0 ? (
+   821→          <EmptyState
+   822→            icon={Package}
+   823→            title="No items yet"
+   824→            hint="Click 'Add' on any product to put it in the cart."
+   825→          />
+   826→        ) : (
+   827→          <>
+   828→            {/* Cart lines */}
+   829→            <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scroll">
+   830→              {cart.map((item) => {
+   831→                const lineGross = item.quantity * item.unitPrice
+   832→                const lineTotal =
+   833→                  lineGross - (lineGross * item.discountPct) / 100
+   834→                return (
+   835→                  <div
+   836→                    key={item.productId}
+   837→                    className="rounded-md border border-zinc-200 dark:border-zinc-800 p-2.5"
+   838→                  >
+   839→                    <div className="flex items-start justify-between gap-2">
+   840→                      <div className="min-w-0">
+   841→                        <p className="text-sm font-medium truncate">{item.name}</p>
+   842→                        <p className="text-[10px] text-muted-foreground font-mono">
+   843→                          {item.code} · {item.unit} · tax {item.taxRate}%
+   844→                        </p>
+   845→                      </div>
+   846→                      <Button
+   847→                        variant="ghost"
+   848→                        size="sm"
+   849→                        className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+   850→                        onClick={() => removeItem(item.productId)}
+   851→                      >
+   852→                        <Trash2 className="w-3.5 h-3.5" />
+   853→                      </Button>
+   854→                    </div>
+   855→                    <div className="grid grid-cols-3 gap-1.5 mt-2">
+   856→                      <Field label="Qty">
+   857→                        <Input
+   858→                          type="number"
+   859→                          min={1}
+   860→                          value={item.quantity}
+   861→                          onChange={(e) =>
+   862→                            updateItem(item.productId, {
+   863→                              quantity: Math.max(1, Number(e.target.value) || 1),
+   864→                            })
+   865→                          }
+   866→                          className="h-8 text-sm"
+   867→                        />
+   868→                      </Field>
+   869→                      <Field label="Unit Price">
+   870→                        <Input
+   871→                          type="number"
+   872→                          min={0}
+   873→                          step="0.01"
+   874→                          value={item.unitPrice}
+   875→                          onChange={(e) =>
+   876→                            updateItem(item.productId, {
+   877→                              unitPrice: Math.max(0, Number(e.target.value) || 0),
+   878→                            })
+   879→                          }
+   880→                          className="h-8 text-sm"
+   881→                        />
+   882→                      </Field>
+   883→                      <Field label="Disc %">
+   884→                        <Input
+   885→                          type="number"
+   886→                          min={0}
+   887→                          max={100}
+   888→                          step="0.1"
+   889→                          value={item.discountPct}
+   890→                          onChange={(e) =>
+   891→                            updateItem(item.productId, {
+   892→                              discountPct: Math.min(
+   893→                                100,
+   894→                                Math.max(0, Number(e.target.value) || 0)
+   895→                              ),
+   896→                            })
+   897→                          }
+   898→                          className="h-8 text-sm"
+   899→                        />
+   900→                      </Field>
+   901→                    </div>
+   902→                    <div className="flex items-center justify-between mt-1.5 text-xs">
+   903→                      <span className="text-muted-foreground">
+   904→                        Line gross: {formatCurrency(lineGross)}
+   905→                      </span>
+   906→                      <span className="font-semibold">
+   907→                        Net: {formatCurrency(lineTotal)}
+   908→                      </span>
+   909→                    </div>
+   910→                  </div>
+   911→                )
+   912→              })}
+   913→            </div>
+   914→
+   915→            {/* Manual discount + currency */}
+   916→            <div className="grid grid-cols-2 gap-2">
+   917→              <Field label="Manual Discount (overall)">
+   918→                <Input
+   919→                  type="number"
+   920→                  min={0}
+   921→                  step="0.01"
+   922→                  value={manualDiscount}
+   923→                  onChange={(e) =>
+   924→                    setManualDiscount(Math.max(0, Number(e.target.value) || 0))
+   925→                  }
+   926→                  className="h-8 text-sm"
+   927→                />
+   928→              </Field>
+   929→              <Field label="Currency">
+   930→                <Select value={currencyCode} onValueChange={setCurrencyCode}>
+   931→                  <SelectTrigger className="h-8 text-sm">
+   932→                    <SelectValue />
+   933→                  </SelectTrigger>
+   934→                  <SelectContent>
+   935→                    {currencies.map((c) => (
+   936→                      <SelectItem key={c.id} value={c.code}>
+   937→                        {c.code} · {c.symbol} (rate {c.rate})
+   938→                      </SelectItem>
+   939→                    ))}
+   940→                  </SelectContent>
+   941→                </Select>
+   942→              </Field>
+   943→            </div>
+   944→
+   945→            {/* Totals breakdown */}
+   946→            {totals && (
+   947→              <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 space-y-1.5">
+   948→                <TotalsRow label="Subtotal" value={formatCurrency(totals.subtotal, currencyCode, currency?.rate || 1)} />
+   949→                {totals.schemeDiscount > 0 && (
+   950→                  <TotalsRow
+   951→                    label="Scheme Discount"
+   952→                    value={`− ${formatCurrency(totals.schemeDiscount, currencyCode, currency?.rate || 1)}`}
+   953→                    tone="rose"
+   954→                    icon={<Tag className="w-3 h-3" />}
+   955→                  />
+   956→                )}
+   957→                {totals.manualDiscount > 0 && (
+   958→                  <TotalsRow
+   959→                    label="Manual Discount"
+   960→                    value={`− ${formatCurrency(totals.manualDiscount, currencyCode, currency?.rate || 1)}`}
+   961→                    tone="rose"
+   962→                  />
+   963→                )}
+   964→                <TotalsRow
+   965→                  label="Taxable Amount"
+   966→                  value={formatCurrency(totals.taxableAmount, currencyCode, currency?.rate || 1)}
+   967→                  strong
+   968→                />
+   969→                <TotalsRow
+   970→                  label={`Sales Tax (${company?.salesTaxRate ?? 17}%)`}
+   971→                  value={formatCurrency(totals.salesTax, currencyCode, currency?.rate || 1)}
+   972→                />
+   973→                {shop?.taxType === 'NON_FILER' && (
+   974→                  <TotalsRow
+   975→                    label={`Further Tax (Non-Filer ${company?.furtherTaxRate ?? 3}%)`}
+   976→                    value={formatCurrency(totals.furtherTax, currencyCode, currency?.rate || 1)}
+   977→                    tone="amber"
+   978→                  />
+   979→                )}
+   980→                <TotalsRow
+   981→                  label={`Withholding Tax (${shop?.taxType === 'FILER' ? `${company?.filerTaxRate ?? 4.5}% Filer` : `${company?.nonFilerTaxRate ?? 8}% Non-Filer`})`}
+   982→                  value={formatCurrency(totals.withholdingTax, currencyCode, currency?.rate || 1)}
+   983→                  tone="amber"
+   984→                />
+   985→                <div className="border-t border-emerald-300/50 dark:border-emerald-800/50 pt-1.5 mt-1.5">
+   986→                  <div className="flex items-center justify-between">
+   987→                    <span className="text-sm font-bold">Grand Total</span>
+   988→                    <span className="text-lg font-extrabold text-emerald-700 dark:text-emerald-300">
+   989→                      {formatCurrency(totals.grandTotal, currencyCode, currency?.rate || 1)}
+   990→                    </span>
+   991→                  </div>
+   992→                </div>
+   993→              </div>
+   994→            )}
+   995→
+   996→            {/* Warnings */}
+   997→            {totals && totals.warnings.length > 0 && (
+   998→              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3">
+   999→                <div className="flex items-center gap-2 mb-1.5">
+  1000→                  <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+  1001→                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+  1002→                    Warnings ({totals.warnings.length}) — order can still be submitted
+  1003→                  </p>
+  1004→                </div>
+  1005→                <ul className="space-y-1 text-[11px] text-amber-700 dark:text-amber-400 list-disc pl-5">
+  1006→                  {totals.warnings.map((w, i) => (
+  1007→                    <li key={i}>{w}</li>
+  1008→                  ))}
+  1009→                </ul>
+  1010→              </div>
+  1011→            )}
+  1012→
+  1013→            {/* Notes */}
+  1014→            <Field label="Notes (optional)">
+  1015→              <Textarea
+  1016→                placeholder="Any remark for this order…"
+  1017→                value={notes}
+  1018→                onChange={(e) => setNotes(e.target.value)}
+  1019→                rows={2}
+  1020→                className="text-sm resize-none"
+  1021→              />
+  1022→            </Field>
+  1023→
+  1024→            {/* Submit */}
+  1025→            <Button
+  1026→              onClick={onSubmit}
+  1027→              disabled={submitting || cart.length === 0}
+  1028→              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-10"
+  1029→            >
+  1030→              {submitting ? (
+  1031→                <>
+  1032→                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…
+  1033→                </>
+  1034→              ) : (
+  1035→                <>
+  1036→                  <FileCheck2 className="w-4 h-4 mr-2" /> Submit Order
+  1037→                </>
+  1038→              )}
+  1039→            </Button>
+  1040→            {!compact && (
+  1041→              <p className="text-[10px] text-muted-foreground text-center">
+  1042→                Order will be created with status <span className="font-semibold">PENDING</span> for approval.
+  1043→              </p>
+  1044→            )}
+  1045→          </>
+  1046→        )}
+  1047→      </CardContent>
+  1048→    </Card>
+  1049→  )
+  1050→}
+  1051→
+  1052→// ---------- small field wrapper ----------
+  1053→function Field({
+  1054→  label,
+  1055→  children,
+  1056→}: {
+  1057→  label: string
+  1058→  children: React.ReactNode
+  1059→}) {
+  1060→  return (
+  1061→    <div className="space-y-1">
+  1062→      <label className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+  1063→        {label}
+  1064→      </label>
+  1065→      {children}
+  1066→    </div>
+  1067→  )
+  1068→}
+  1069→
+  1070→function TotalsRow({
+  1071→  label,
+  1072→  value,
+  1073→  tone = 'default',
+  1074→  strong = false,
+  1075→  icon,
+  1076→}: {
+  1077→  label: string
+  1078→  value: string
+  1079→  tone?: 'default' | 'rose' | 'amber'
+  1080→  strong?: boolean
+  1081→  icon?: React.ReactNode
+  1082→}) {
+  1083→  return (
+  1084→    <div className="flex items-center justify-between text-xs">
+  1085→      <span
+  1086→        className={cn(
+  1087→          'flex items-center gap-1.5',
+  1088→          tone === 'rose' && 'text-rose-600 dark:text-rose-400',
+  1089→          tone === 'amber' && 'text-amber-700 dark:text-amber-400',
+  1090→          !tone || tone === 'default' ? 'text-muted-foreground' : ''
+  1091→        )}
+  1092→      >
+  1093→        {icon}
+  1094→        {label}
+  1095→      </span>
+  1096→      <span
+  1097→        className={cn(
+  1098→          strong ? 'font-bold text-sm' : 'font-medium',
+  1099→          tone === 'rose' && 'text-rose-600 dark:text-rose-400',
+  1100→          tone === 'amber' && 'text-amber-700 dark:text-amber-400'
+  1101→        )}
+  1102→      >
+  1103→        {value}
+  1104→      </span>
+  1105→    </div>
+  1106→  )
+  1107→}
+  1108→
+  1109→export default OrderEntryModule
+  1110→
