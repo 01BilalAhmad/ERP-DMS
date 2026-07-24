@@ -11,6 +11,7 @@ import { ProductsModule } from '@/components/erp/modules/products'
 import { WarehouseModule } from '@/components/erp/modules/warehouse'
 import { OrderEntryModule } from '@/components/erp/modules/order-entry'
 import { OrdersModule } from '@/components/erp/modules/orders'
+import { BatchesModule } from '@/components/erp/modules/batches'
 import { InvoicesModule } from '@/components/erp/modules/invoices'
 import { PaymentsModule } from '@/components/erp/modules/payments'
 import { AccountsModule } from '@/components/erp/modules/accounts'
@@ -46,6 +47,7 @@ export default function Home() {
       {activeModule === 'products' && <ProductsModule />}
       {activeModule === 'warehouse' && <WarehouseModule />}
       {activeModule === 'order-entry' && <OrderEntryModule />}
+      {activeModule === 'batches' && <BatchesModule />}
       {activeModule === 'orders' && <OrdersModule />}
       {activeModule === 'invoices' && <InvoicesModule />}
       {activeModule === 'payments' && <PaymentsModule />}

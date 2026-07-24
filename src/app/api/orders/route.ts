@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   const body = await req.json()
   const {
     companyId, shopId, items, manualDiscount, currency, currencyRate,
-    notes, bookerId,
+    notes, bookerId, batchId,
   } = body as {
     companyId: string
     shopId: string
@@ -67,6 +67,7 @@ export async function POST(req: Request) {
     currencyRate: number
     notes?: string
     bookerId?: string
+    batchId?: string
   }
 
   if (!companyId || !shopId) return bad('companyId and shopId required')
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
     const order = await db.order.create({
       data: {
         orderNo,
+        batchId: batchId || null,
         companyId,
         shopId,
         bookerId: finalBookerId || null,

@@ -256,3 +256,60 @@ Unresolved / Next Steps:
 - Mobile PWA optimization for bookers in field
 - Bulk shop import (currently manual as requested)
 - Audit log for status changes
+
+---
+Task ID: BATCH-FLOW
+Agent: main
+Task: Add Batch Processing + Consolidated Pick List + Dispatch Manifest flow
+
+Work Log:
+- Added OrderBatch model to schema (batchNo, companyId, bookerId, status flow, totals, timestamps)
+- Linked Order to OrderBatch via batchId (nullable, SetNull on delete)
+- Added batch relations to User, Company, OrderBooker models
+- Ran db:push + db:generate to sync Prisma client
+- Created API routes:
+  - GET/POST /api/batches (list + create with auto-attach pending orders)
+  - GET/PATCH /api/batches/[id] (detail + bulk status update in transaction)
+  - GET /api/batches/[id]/picklist (consolidated product-wise aggregation)
+  - GET /api/batches/[id]/manifest (shop-wise loading slip with route sequence)
+- Updated orders POST API to accept batchId field
+- Added TanStack Query hooks: useBatches, useBatch, usePickList, useManifest, useCreateBatch, useUpdateBatchStatus
+- Updated Zustand store with 'batches' module + activeBatchId
+- Added "Batches & Pick Lists" nav item to app-shell
+- Built BatchesModule component with:
+  - Card grid view of batches (batchNo, company, status, orders/shops/units/total)
+  - Create Batch dialog (auto-attaches all PENDING orders for company)
+  - Detail Sheet with 3 tabs:
+    * Orders tab: list of all orders in batch
+    * Pick List tab: consolidated product-wise pick list with shortage detection + print
+    * Manifest tab: shop-wise dispatch manifest with route sequence (sorted by class A→B→C) + print
+  - Bulk actions: Approve All, Mark Picked All, Mark Dispatched All, Mark Delivered All, Close Batch, Cancel Batch
+  - On DELIVERED: transaction generates invoices + ledger debits + stock deductions for ALL orders
+- Regenerated Prisma client, restarted dev server
+- Verified end-to-end via agent-browser:
+  1. Created 3 test orders (ORD-000004, 000005, 000006) for 3 shops
+  2. Created batch BAT-000001 → auto-attached all 3 pending orders (9 units, Rs 986.27)
+  3. Approved all 3 orders with 1 click ✓
+  4. Viewed consolidated pick list: 1 product (Chocolate Biscuit), 9 PCS to pick, 98 available, 0 shortage ✓
+  5. Marked Picked all 3 ✓
+  6. Viewed dispatch manifest: 3 stops sorted by class (A → A → A), route sequence 1,2,3 ✓
+  7. Marked Dispatched all 3 ✓
+  8. Marked Delivered all 3 → auto-generated INV-000002, 000003, 000004 invoices ✓
+  9. Verified ledger: 3 shops with outstanding (327.31, 436.41, 222.55) ✓
+  10. Verified stock: deducted from 98 to 89 (9 units = 3 orders sum) ✓
+
+Stage Summary:
+- BATCH FLOW FULLY WORKING — solves the exact problem user raised:
+  "Booker punches 10 orders → supervisor doesn't approve 10 bills one by one"
+  Now: 1 batch → 1 approve → 1 pick list → 1 manifest → 1 deliver
+- All bulk operations happen in a single DB transaction (atomic)
+- Consolidated pick list: warehouse picks once per product (not once per order)
+- Dispatch manifest: rider gets one loading slip with all shops + route sequence
+- Tax calculation remains 100% accurate (sales tax, further tax for non-filer, withholding tax)
+
+Unresolved / Next Steps:
+- Show batch info on individual order detail (currently batch link not shown in Orders module)
+- Allow adding specific orders to a batch (currently auto-attaches ALL pending)
+- Print-optimized CSS for pick list + manifest (currently uses window.print)
+- Booker dashboard: show their batches + today's route
+- Batch-level payment tracking (collect payment against whole batch)

@@ -91,6 +91,24 @@ export function useDashboard(companyId?: string) {
   return useQuery({ queryKey: ['dashboard', companyId], queryFn: () => fetchJson(`/api/dashboard?${u}`), refetchInterval: 60000 })
 }
 
+export function useBatches(params: { companyId?: string; status?: string; bookerId?: string } = {}) {
+  const u = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => v && v !== 'ALL' && u.set(k, String(v)))
+  return useQuery({ queryKey: ['batches', params], queryFn: () => fetchJson(`/api/batches?${u}`) })
+}
+
+export function useBatch(id?: string) {
+  return useQuery({ queryKey: ['batch', id], queryFn: () => fetchJson(`/api/batches/${id}`), enabled: !!id })
+}
+
+export function usePickList(batchId?: string) {
+  return useQuery({ queryKey: ['picklist', batchId], queryFn: () => fetchJson(`/api/batches/${batchId}/picklist`), enabled: !!batchId })
+}
+
+export function useManifest(batchId?: string) {
+  return useQuery({ queryKey: ['manifest', batchId], queryFn: () => fetchJson(`/api/batches/${batchId}/manifest`), enabled: !!batchId })
+}
+
 export function useReport(type: string, params: { companyId?: string; from?: string; to?: string } = {}) {
   const u = new URLSearchParams({ type })
   Object.entries(params).forEach(([k, v]) => v && u.set(k, String(v)))
@@ -207,4 +225,35 @@ export function useUpdateCurrency() {
 export function useCreateCurrency() {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (body: any) => postJson('/api/currencies', body), onSuccess: () => qc.invalidateQueries({ queryKey: ['currencies'] }) })
+}
+export function useCreateBatch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: any) => postJson('/api/batches', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['batches'] })
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+export function useUpdateBatchStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status, notes }: { id: string; status: string; notes?: string }) =>
+      patchJson(`/api/batches/${id}`, { status, notes }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['batches'] })
+      qc.invalidateQueries({ queryKey: ['batch', vars.id] })
+      qc.invalidateQueries({ queryKey: ['picklist', vars.id] })
+      qc.invalidateQueries({ queryKey: ['manifest', vars.id] })
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['ledger'] })
+      qc.invalidateQueries({ queryKey: ['warehouse'] })
+      qc.invalidateQueries({ queryKey: ['payments'] })
+      qc.invalidateQueries({ queryKey: ['shops'] })
+    },
+  })
 }
