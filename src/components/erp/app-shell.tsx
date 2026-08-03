@@ -3,7 +3,7 @@
 import { signOut } from 'next-auth/react'
 import {
   LayoutDashboard, Building2, Store, Users, Package, Warehouse,
-  ShoppingCart, ClipboardList, FileText, Wallet, CreditCard, BarChart3, Layers,
+  ShoppingCart, ClipboardList, FileText, Wallet, CreditCard, BarChart3, Layers, PackagePlus,
   LogOut, Menu, X, Moon, Sun, ChevronDown, Building, Coins, User as UserIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ const NAV_GROUPS: { label: string; items: { key: ModuleKey; label: string; icon:
       { key: 'bookers', label: 'Order Bookers', icon: Users, roles: ['SUPER_ADMIN', 'COMPANY_MANAGER'] },
       { key: 'products', label: 'Products', icon: Package },
       { key: 'warehouse', label: 'Warehouse & Stock', icon: Warehouse, roles: ['SUPER_ADMIN', 'COMPANY_MANAGER', 'WAREHOUSE'] },
+      { key: 'purchase-invoices', label: 'Purchase Invoices', icon: PackagePlus, roles: ['SUPER_ADMIN', 'COMPANY_MANAGER', 'WAREHOUSE'] },
     ],
   },
   {

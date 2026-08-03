@@ -9,6 +9,7 @@ import { ShopsModule } from '@/components/erp/modules/shops'
 import { BookersModule } from '@/components/erp/modules/bookers'
 import { ProductsModule } from '@/components/erp/modules/products'
 import { WarehouseModule } from '@/components/erp/modules/warehouse'
+import { PurchaseInvoicesModule } from '@/components/erp/modules/purchase-invoices'
 import { OrderEntryModule } from '@/components/erp/modules/order-entry'
 import { OrdersModule } from '@/components/erp/modules/orders'
 import { BatchesModule } from '@/components/erp/modules/batches'
@@ -46,6 +47,7 @@ export default function Home() {
       {activeModule === 'bookers' && <BookersModule />}
       {activeModule === 'products' && <ProductsModule />}
       {activeModule === 'warehouse' && <WarehouseModule />}
+      {activeModule === 'purchase-invoices' && <PurchaseInvoicesModule />}
       {activeModule === 'order-entry' && <OrderEntryModule />}
       {activeModule === 'batches' && <BatchesModule />}
       {activeModule === 'orders' && <OrdersModule />}

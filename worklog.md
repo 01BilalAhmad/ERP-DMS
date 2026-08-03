@@ -611,3 +611,59 @@ Project is mature and stable. All 12 modules load without runtime errors (verifi
 - Mobile optimization: dashboard widgets stack on mobile but could be more compact
 - Could add CSV/Excel export for all reports
 - Consider adding booker login flow test (login as ahmed@erp.local / booker123 to verify booker sees only their data)
+
+---
+Task ID: PURCHASE-INVOICE-SYSTEM
+Agent: main
+Task: Build Purchase Invoice system — record supplier purchases + auto-add stock to warehouse
+
+## Issue
+Products could be created but there was no way to record a purchase invoice from a supplier to add stock. Only opening stock or manual warehouse adjustment was available.
+
+## Solution
+Built a complete Purchase Invoice system:
+
+### 1. Schema (PurchaseInvoice + PurchaseInvoiceItem models)
+- PurchaseInvoice: invoiceNo (PINV-000001), companyId, supplierName, supplierNtn, invoiceDate, subtotal, taxAmount, otherCharges, grandTotal, notes, status, createdById
+- PurchaseInvoiceItem: purchaseInvoiceId, productId, quantity, unitPrice, taxRate, lineTotal
+- Relations added to Company, User, Product models
+
+### 2. API (/api/purchase-invoices)
+- GET: list purchase invoices with items + company
+- POST: create purchase invoice + **auto-add stock to warehouse** + create stock movements
+  - Transaction ensures atomic operation
+  - For each item: finds/creates Stock record, adds quantity, creates StockMovement (type=IN)
+
+### 3. Purchase Invoices Module (UI)
+- List view: invoice no, date, supplier, company, items count, total, status, view detail
+- Summary KPIs: Total Purchases, Total Value, Suppliers count
+- Create dialog:
+  - Company selector
+  - Supplier name + NTN
+  - Tax amount + Other charges
+  - Product search + line items table (product, qty, price, total)
+  - Add Row button for more items
+  - Auto-calculates subtotal + grand total
+  - "Create & Add Stock" button
+- Detail dialog: shows all items + totals
+
+### 4. Navigation
+- "Purchase Invoices" nav item under Master Data (admin/manager/warehouse only)
+- PackagePlus icon
+
+## Verified
+1. Stock BEFORE: Chocolate Biscuit = 88 units
+2. Created Purchase Invoice PINV-000001: Test Supplier, 50 units @ Rs 86 = Rs 4,300
+3. POST /api/purchase-invoices 201 ✓
+4. Stock AFTER: Chocolate Biscuit = **138 units** (88 + 50 = 138) ✓
+5. Purchase Invoice saved: PINV-000001, 1 item, total Rs 4,300 ✓
+6. Lint: Clean
+
+## Files Created/Modified
+- prisma/schema.prisma — PurchaseInvoice + PurchaseInvoiceItem models + relations
+- src/app/api/purchase-invoices/route.ts (NEW) — GET + POST with stock auto-add
+- src/lib/api-hooks.ts — usePurchaseInvoices + useCreatePurchaseInvoice hooks
+- src/components/erp/modules/purchase-invoices.tsx (NEW) — full UI module
+- src/lib/store.ts — added 'purchase-invoices' to ModuleKey
+- src/components/erp/app-shell.tsx — added nav item + PackagePlus icon
+- src/app/page.tsx — wired PurchaseInvoicesModule

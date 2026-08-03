@@ -219,6 +219,24 @@ export function useCreatePayment() {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (body: any) => postJson('/api/payments', body), onSuccess: () => { qc.invalidateQueries({ queryKey: ['payments'] }); qc.invalidateQueries({ queryKey: ['ledger'] }); qc.invalidateQueries({ queryKey: ['dashboard'] }); qc.invalidateQueries({ queryKey: ['shops'] }) } })
 }
+
+export function usePurchaseInvoices(companyId?: string) {
+  const u = new URLSearchParams()
+  if (companyId) u.set('companyId', companyId)
+  return useQuery({ queryKey: ['purchase-invoices', companyId], queryFn: () => fetchJson(`/api/purchase-invoices?${u}`) })
+}
+export function useCreatePurchaseInvoice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: any) => postJson('/api/purchase-invoices', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['purchase-invoices'] })
+      qc.invalidateQueries({ queryKey: ['warehouse'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
 export function useUpdateCurrency() {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (body: any) => putJson('/api/currencies', body), onSuccess: () => qc.invalidateQueries({ queryKey: ['currencies'] }) })

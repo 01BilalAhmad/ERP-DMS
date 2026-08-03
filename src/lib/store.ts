@@ -10,6 +10,7 @@ export type ModuleKey =
   | 'bookers'
   | 'products'
   | 'warehouse'
+  | 'purchase-invoices'
   | 'order-entry'
   | 'batches'
   | 'orders'

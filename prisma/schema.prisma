@@ -28,6 +28,7 @@ model User {
   approvals     Order[]      @relation("OrderApprovedBy")
   batchesCreated  OrderBatch[] @relation("BatchCreatedBy")
   batchesApproved  OrderBatch[] @relation("BatchApprovedBy")
+  purchasesCreated PurchaseInvoice[] @relation("PurchaseCreatedBy")
 }
 
 // ===================== MULTI-CURRENCY =====================
@@ -70,6 +71,7 @@ model Company {
   orders         Order[]
   batches        OrderBatch[]
   invoices       Invoice[]
+  purchaseInvoices PurchaseInvoice[]
   payments       Payment[]
   ledgerEntries  Ledger[]
   bookerMaps     BookerCompanyMapping[]
@@ -234,6 +236,7 @@ model Product {
   schemes   Scheme[]
   orderItems OrderItem[]
   movements StockMovement[]
+  purchaseItems PurchaseInvoiceItem[]
 
   @@unique([companyId, code])
 }
@@ -472,4 +475,40 @@ model Payment {
   receivedBy User    @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
   booker     OrderBooker? @relation("PaymentBooker", fields: [bookerId], references: [id], onDelete: SetNull)
   ledger     Ledger?
+}
+
+// ===================== PURCHASE INVOICES =====================
+model PurchaseInvoice {
+  id            String   @id @default(cuid())
+  invoiceNo     String   @unique // PINV-000001
+  companyId     String
+  supplierName  String
+  supplierNtn   String?
+  invoiceDate   DateTime @default(now())
+  currency      String   @default("PKR")
+  subtotal      Float    @default(0)
+  taxAmount     Float    @default(0)
+  otherCharges  Float    @default(0)
+  grandTotal    Float    @default(0)
+  notes         String?
+  status        String   @default("POSTED") // POSTED | DRAFT
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  company    Company             @relation(fields: [companyId], references: [id])
+  createdBy  User                @relation("PurchaseCreatedBy", fields: [createdById], references: [id])
+  items      PurchaseInvoiceItem[]
+}
+
+model PurchaseInvoiceItem {
+  id          String  @id @default(cuid())
+  purchaseInvoiceId String
+  productId   String
+  quantity    Float
+  unitPrice   Float
+  taxRate     Float   @default(0)
+  lineTotal   Float
+
+  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
 }
