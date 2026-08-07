@@ -8,12 +8,15 @@ import { CompaniesModule } from '@/components/erp/modules/companies'
 import { ShopsModule } from '@/components/erp/modules/shops'
 import { BookersModule } from '@/components/erp/modules/bookers'
 import { ProductsModule } from '@/components/erp/modules/products'
+import { SchemesModule } from '@/components/erp/modules/schemes'
 import { WarehouseModule } from '@/components/erp/modules/warehouse'
 import { PurchaseInvoicesModule } from '@/components/erp/modules/purchase-invoices'
 import { OrderEntryModule } from '@/components/erp/modules/order-entry'
+import { BulkProcessModule } from '@/components/erp/modules/bulk-process'
 import { OrdersModule } from '@/components/erp/modules/orders'
 import { BatchesModule } from '@/components/erp/modules/batches'
 import { InvoicesModule } from '@/components/erp/modules/invoices'
+import { SaleReturnsModule } from '@/components/erp/modules/sale-returns'
 import { PaymentsModule } from '@/components/erp/modules/payments'
 import { AccountsModule } from '@/components/erp/modules/accounts'
 import { ReportsModule } from '@/components/erp/modules/reports'
@@ -46,12 +49,15 @@ export default function Home() {
       {activeModule === 'shops' && <ShopsModule />}
       {activeModule === 'bookers' && <BookersModule />}
       {activeModule === 'products' && <ProductsModule />}
+      {activeModule === 'schemes' && <SchemesModule />}
       {activeModule === 'warehouse' && <WarehouseModule />}
       {activeModule === 'purchase-invoices' && <PurchaseInvoicesModule />}
       {activeModule === 'order-entry' && <OrderEntryModule />}
+      {activeModule === 'bulk-process' && <BulkProcessModule />}
       {activeModule === 'batches' && <BatchesModule />}
       {activeModule === 'orders' && <OrdersModule />}
       {activeModule === 'invoices' && <InvoicesModule />}
+      {activeModule === 'sale-returns' && <SaleReturnsModule />}
       {activeModule === 'payments' && <PaymentsModule />}
       {activeModule === 'accounts' && <AccountsModule />}
       {activeModule === 'reports' && <ReportsModule />}
