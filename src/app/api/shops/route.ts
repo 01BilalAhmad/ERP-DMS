@@ -28,13 +28,24 @@ export async function GET(req: Request) {
     where.companyLinks = { some: { companyId: companyLink } }
   }
   // Filter by booker assignment: only shops assigned to this booker (via BookerShopAssignment)
+  // But if no assignments exist, fall back to shops linked to the company
   if (bookerId) {
-    where.assignments = { some: { bookerId } }
+    // First check if this booker has any shop assignments
+    const assignmentCount = await db.bookerShopAssignment.count({ where: { bookerId } })
+    if (assignmentCount > 0) {
+      where.assignments = { some: { bookerId } }
+    }
+    // If no assignments, don't filter by assignments — show all company-linked shops
   }
 
-  // SECURITY: Order Bookers can ONLY see shops assigned to them (auto-filter, regardless of query params)
+  // SECURITY: Order Bookers can ONLY see shops assigned to them
+  // But if no assignments exist, show shops linked to their assigned companies
   if (user.role === 'ORDER_BOOKER' && user.booker) {
-    where.assignments = { some: { bookerId: user.booker.id } }
+    const myAssignments = await db.bookerShopAssignment.count({ where: { bookerId: user.booker.id } })
+    if (myAssignments > 0) {
+      where.assignments = { some: { bookerId: user.booker.id } }
+    }
+    // If no assignments, fall back to company-linked shops (already filtered above)
   }
 
   const shops = await db.shop.findMany({
