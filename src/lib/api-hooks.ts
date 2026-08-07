@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 async function fetchJson(url: string) {
   const r = await fetch(url)
   if (!r.ok) {
-    const e = await r.json().catch(() => ({ error: r.statusText }))
-    throw new Error(e.error || 'Request failed')
+    const e = await r.json().catch(() => ({ error: r.statusText || `HTTP ${r.status}` }))
+    throw new Error(e.error || e.message || `Request failed (HTTP ${r.status})`)
   }
   return r.json()
 }
@@ -123,8 +123,8 @@ async function postJson(url: string, body: any) {
     body: JSON.stringify(body),
   })
   if (!r.ok) {
-    const e = await r.json().catch(() => ({ error: r.statusText }))
-    throw new Error(e.error || 'Failed')
+    const e = await r.json().catch(() => ({ error: r.statusText || `HTTP ${r.status}` }))
+    throw new Error(e.error || e.message || `Request failed (HTTP ${r.status})`)
   }
   return r.json()
 }
@@ -136,8 +136,8 @@ async function putJson(url: string, body: any) {
     body: JSON.stringify(body),
   })
   if (!r.ok) {
-    const e = await r.json().catch(() => ({ error: r.statusText }))
-    throw new Error(e.error || 'Failed')
+    const e = await r.json().catch(() => ({ error: r.statusText || `HTTP ${r.status}` }))
+    throw new Error(e.error || e.message || `Request failed (HTTP ${r.status})`)
   }
   return r.json()
 }
@@ -149,8 +149,8 @@ async function patchJson(url: string, body: any) {
     body: JSON.stringify(body),
   })
   if (!r.ok) {
-    const e = await r.json().catch(() => ({ error: r.statusText }))
-    throw new Error(e.error || 'Failed')
+    const e = await r.json().catch(() => ({ error: r.statusText || `HTTP ${r.status}` }))
+    throw new Error(e.error || e.message || `Request failed (HTTP ${r.status})`)
   }
   return r.json()
 }

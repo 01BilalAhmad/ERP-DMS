@@ -667,3 +667,66 @@ Built a complete Purchase Invoice system:
 - src/lib/store.ts — added 'purchase-invoices' to ModuleKey
 - src/components/erp/app-shell.tsx — added nav item + PackagePlus icon
 - src/app/page.tsx — wired PurchaseInvoicesModule
+
+---
+Task ID: FIX-MARK-DELIVERED-20260807
+Agent: main
+Task: Fix "Failed" error when clicking Mark Delivered All on a DISPATCHED batch (BAT-000004 with 3 orders)
+
+## Diagnosis
+User reported that clicking "Mark Delivered All (3)" on a DISPATCHED batch showed a red "Failed" toast with no details. Investigation revealed:
+
+1. **Generic error message**: The `patchJson` helper in `src/lib/api-hooks.ts` threw `new Error('Failed')` whenever the server returned a non-OK response with no JSON `error` field. So if the API crashed with a 500 + HTML error page, the user just saw "Failed" with zero context.
+
+2. **No try/catch in API route**: The PATCH `/api/batches/[id]` route in `src/app/api/batches/[id]/route.ts` had no try/catch around the `db.$transaction()`. Any Prisma error (timeout, constraint violation, connection issue) bubbled up as an unhandled 500 with no JSON body — which the client reduced to "Failed".
+
+3. **Performance concern (serverless)**: The original code called `tx.warehouseSection.findFirst()` *inside* the inner loop — once per order item — and `tx.invoice.count()` per order iteration. On Vercel serverless (10s default timeout), 3 orders × N items × multiple sub-queries per item could exceed the limit.
+
+4. **Stale dev server**: Local dev server (PID 1072) was started before .env was updated, so it was connecting to an OLD database and returning stale batches — masking the real issue. After restart with explicit DATABASE_URL env, the API correctly returned BAT-000004 in DISPATCHED status with 3 orders, matching Neon.
+
+## Fix Applied
+
+### 1. `src/app/api/batches/[id]/route.ts` (PATCH endpoint)
+- Wrapped entire PATCH handler in `try/catch` with detailed server-side logging (`console.error` with batchId, status, error message, code, stack trace)
+- Returns `bad(msg, 500)` with the actual Prisma error message (e.g., for P2002 unique constraint violations, shows which field collided)
+- **Optimization 1**: Fetch `warehouseSection` ONCE before the loop (was per-item per-order)
+- **Optimization 2**: Use a local `invoiceSeq` counter (was `tx.invoice.count()` per order)
+- **Optimization 3**: Explicit `{ timeout: 60000 }` on `$transaction` (default is 5s — too short for batch delivery)
+- Early validation: returns helpful error if no warehouse section exists for the company
+- Idempotency: calling DELIVERED on an already-DELIVERED batch now succeeds (skips already-invoiced orders)
+- Allow same-status re-apply (idempotent) — only block strictly backward moves
+
+### 2. `src/lib/api-hooks.ts` (all 4 HTTP helpers)
+- `fetchJson`, `postJson`, `putJson`, `patchJson` now surface actual server error messages
+- Fallback chain: `e.error || e.message || \`Request failed (HTTP ${r.status})\``
+- When response body isn't JSON, falls back to `r.statusText || \`HTTP ${r.status}\`` instead of empty string
+- Users will now see real error messages (e.g., "No warehouse section found for company X" or "Duplicate value error: invoiceNo") instead of just "Failed"
+
+## Verification
+Direct API test (login → GET /api/batches → PATCH /api/batches/{id} with status=DELIVERED):
+
+**Before fix**: PATCH returned 500 with no JSON body → client toast "Failed"
+**After fix**:
+- PATCH /api/batches/cmsiurcjh0003jv04xxiw25x6 → 200 OK ✓
+- Response: `{status: "DELIVERED", deliveredAt: "2026-08-07T11:43:51.482Z", ...}`
+- All 3 orders (ORD-000003, ORD-000004, ORD-000005) moved to DELIVERED ✓
+- All 3 orders now have invoices (INV-000002, INV-000003, INV-000004) ✓
+- Idempotent re-call: 200 OK again, no duplicate invoices created ✓
+- Lint: clean ✓
+
+## Stage Summary
+- Mark Delivered button now works end-to-end (was returning opaque "Failed" toast)
+- Better observability: server logs full error context, client sees real error message
+- Performance optimization reduces DB roundtrips from O(orders × items) to O(orders + items)
+- Transaction timeout increased to 60s for safety on serverless
+- All 4 HTTP helper functions improved for better error surfacing across the entire app
+
+## Files Modified
+- `src/app/api/batches/[id]/route.ts` — comprehensive try/catch + query optimization + 60s timeout + idempotency
+- `src/lib/api-hooks.ts` — better error messages in fetchJson/postJson/putJson/patchJson
+
+## Unresolved / Next Steps
+- Push fix to GitHub so Vercel auto-deploys (4 commits were already ahead of origin)
+- Verify on Vercel production deployment after push
+- Consider adding similar try/catch to other batch/order API routes for consistency
+- Consider adding a health-check endpoint that reports DB connectivity
