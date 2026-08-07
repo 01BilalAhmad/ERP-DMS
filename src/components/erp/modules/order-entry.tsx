@@ -7,6 +7,7 @@ import {
   useProducts,
   useCurrencies,
   useCreateOrder,
+  useBookers,
   useSession,
 } from '@/lib/api-hooks'
 import { useToast } from '@/hooks/use-toast'
@@ -59,6 +60,7 @@ import {
   Tag,
   StickyNote,
   FileCheck2,
+  Users,
 } from 'lucide-react'
 
 // ---------- local types ----------
@@ -118,6 +120,9 @@ export function OrderEntryModule() {
   const companiesQ = useCompanies()
   const currenciesQ = useCurrencies()
   const createOrderMut = useCreateOrder()
+  const bookersQ = useBookers()
+  const isBookerRole = role === 'ORDER_BOOKER'
+  const effectiveBookerId = isBookerRole ? (session.data?.booker?.id as string) : ''
 
   const [companyId, setCompanyId] = useState<string>('')
   const [shopId, setShopId] = useState<string>('')
@@ -128,8 +133,10 @@ export function OrderEntryModule() {
   const [notes, setNotes] = useState<string>('')
   const [mobileCartOpen, setMobileCartOpen] = useState(false)
   const [submittedOrder, setSubmittedOrder] = useState<any | null>(null)
+  const [selectedBookerId, setSelectedBookerId] = useState<string>('')
 
-  const shopsQ = useShops({ companyId })
+  // Shops: filter by booker if admin selected one, or auto for booker users
+  const shopsQ = useShops({ companyId, bookerId: (isBookerRole ? effectiveBookerId : selectedBookerId) || undefined })
   const productsQ = useProducts({ companyId, q: productSearch })
 
   // Reset dependent state when company changes (React-recommended render-time reset)
@@ -236,6 +243,14 @@ export function OrderEntryModule() {
       })
       return
     }
+    if (!isBookerRole && !selectedBookerId) {
+      toast({
+        title: 'Order Booker required',
+        description: 'Select which order booker this sale belongs to.',
+        variant: 'destructive',
+      })
+      return
+    }
     try {
       const result: any = await createOrderMut.mutateAsync({
         companyId,
@@ -245,7 +260,7 @@ export function OrderEntryModule() {
         currency: currencyCode,
         currencyRate: currency?.rate || 1,
         notes: notes.trim() || undefined,
-        bookerId: session.data?.booker?.id,
+        bookerId: isBookerRole ? effectiveBookerId : selectedBookerId,
       })
       setSubmittedOrder(result.order)
       const warnings: string[] = result.warnings || []
@@ -377,7 +392,7 @@ export function OrderEntryModule() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                1. Select Company
+                1. Select Company & Booker
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -388,19 +403,60 @@ export function OrderEntryModule() {
                   No companies assigned to you. Contact admin.
                 </p>
               ) : (
-                <Select value={companyId} onValueChange={setCompanyId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Choose company…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        <span className="font-mono text-xs mr-2">{c.code}</span>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <>
+                  <Select value={companyId} onValueChange={setCompanyId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose company…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <span className="font-mono text-xs mr-2">{c.code}</span>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Order Booker selector — required for admin, auto for booker */}
+                  {companyId && !isBookerRole && (
+                    <div className="mt-2">
+                      <Label className="text-xs font-medium flex items-center gap-1.5 mb-1.5">
+                        <Users className="w-3 h-3 text-amber-600" />
+                        Order Booker * <span className="text-muted-foreground font-normal">(sale attribution)</span>
+                      </Label>
+                      <Select value={selectedBookerId} onValueChange={setSelectedBookerId}>
+                        <SelectTrigger className="w-full border-amber-200 dark:border-amber-900/50">
+                          <SelectValue placeholder="Select which booker this sale belongs to…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(bookersQ.data || [])
+                            .filter((b: any) => {
+                              if (!b.companyMaps) return true
+                              return b.companyMaps.some((m: any) => m.companyId === companyId)
+                            })
+                            .map((b: any) => (
+                              <SelectItem key={b.id} value={b.id}>
+                                <span className="font-mono text-xs mr-2">{b.employeeCode}</span>
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {!selectedBookerId && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Required — without this, the sale won't be attributed to any booker.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {isBookerRole && (
+                    <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30 px-2.5 py-1.5 text-xs flex items-center gap-1.5">
+                      <Users className="w-3 h-3 text-emerald-600" />
+                      <span>Booking as: <strong>{session.data?.booker?.employeeCode || 'You'}</strong></span>
+                    </div>
+                  )}
+                </>
               )}
               {company && (
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
