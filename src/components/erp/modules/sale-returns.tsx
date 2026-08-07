@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useSaleReturns, useCreateSaleReturn, useInvoices, useAppStore } from '@/lib/api-hooks'
+import { useSaleReturns, useCreateSaleReturn, useInvoices } from '@/lib/api-hooks'
+import { useAppStore } from '@/lib/store'
 import { PageHeader, StatCard, StatusBadge, EmptyState } from '@/components/erp/ui-helpers'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
