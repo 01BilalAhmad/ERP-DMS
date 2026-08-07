@@ -52,3 +52,25 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Environment & secrets
+.env
+.env.local
+.env*.local
+
+# Database
+db/*.db
+db/*.db-journal
+
+# Logs
+dev.log
+server.log
+*.log
+
+# Agent context
+agent-ctx/
+
+# Uploads
+upload/
+
+# Z-scripts
+.zscripts/
