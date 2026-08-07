@@ -276,3 +276,99 @@ export function useUpdateBatchStatus() {
     },
   })
 }
+
+// Missing hooks for schemes, sale-returns, and order item operations
+export function useSchemes(params: { companyId?: string; productId?: string; status?: string } = {}) {
+  const u = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => v && u.set(k, String(v)))
+  return useQuery({ queryKey: ['schemes', params], queryFn: () => fetchJson(`/api/schemes?${u}`) })
+}
+export function useCreateScheme() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (body: any) => postJson('/api/schemes', body), onSuccess: () => qc.invalidateQueries({ queryKey: ['schemes'] }) })
+}
+export function useUpdateScheme() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (body: any) => putJson('/api/schemes', body), onSuccess: () => qc.invalidateQueries({ queryKey: ['schemes'] }) })
+}
+export function useDeleteScheme() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => deleteJson(`/api/schemes?id=${id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ['schemes'] }) })
+}
+export function useSaleReturns(params: { companyId?: string; shopId?: string } = {}) {
+  const u = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => v && u.set(k, String(v)))
+  return useQuery({ queryKey: ['sale-returns', params], queryFn: () => fetchJson(`/api/sale-returns?${u}`) })
+}
+export function useCreateSaleReturn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: any) => postJson('/api/sale-returns', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sale-returns'] })
+      qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['ledger'] })
+      qc.invalidateQueries({ queryKey: ['warehouse'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+export function useDeleteInvoice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteJson(`/api/invoices?id=${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['ledger'] })
+      qc.invalidateQueries({ queryKey: ['warehouse'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['orders'] })
+    },
+  })
+}
+export function useUpdateOrderItems() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orderId, ...body }: { orderId: string; itemId?: string; items?: any[] }) =>
+      patchJson(`/api/orders/${orderId}/items`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['order', vars.orderId] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+export function useAddOrderItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orderId, ...body }: { orderId: string; productId: string; quantity: number; unitPrice: number; discountPct?: number; taxRate?: number }) =>
+      postJson(`/api/orders/${orderId}/items`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['order', vars.orderId] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+export function useDeleteOrderItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orderId, itemId }: { orderId: string; itemId?: string }) =>
+      deleteJson(`/api/orders/${orderId}/items${itemId ? `?itemId=${itemId}` : ''}`),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['order', vars.orderId] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+export function useDeleteOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteJson(`/api/orders/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
